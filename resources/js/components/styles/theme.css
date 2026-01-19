@@ -1,0 +1,19 @@
+ :root {
+  /* Couleurs Ny Havana */
+  --nh-primary: #004b8d;
+  --nh-secondary: #e6a400;
+  --nh-bg-light: #f5f7fa;
+  --nh-dark: #0b1a33;
+  --nh-muted: #6b7c93;
+
+  /* Ombres modernes */
+  --nh-shadow: rgba(0, 0, 0, 0.08) 0px 4px 12px;
+
+  /* Rayons */
+  --nh-radius: 14px;
+}
+
+body {
+  background: var(--nh-bg-light);
+  font-family: "Inter", sans-serif;
+}

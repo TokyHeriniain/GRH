@@ -1,0 +1,40 @@
+.sidebar {
+  width: 250px;
+  background: #1d3557;
+  min-height: 100vh;
+  padding: 15px 0;
+  color: white;
+  transition: width 0.25s;
+}
+
+.sidebar.collapsed {
+  width: 70px;
+}
+
+.sidebar .nav-link {
+  padding: 10px 20px;
+  transition: 0.3s;
+}
+
+.sidebar .nav-link:hover {
+  background: rgba(255,255,255,0.1);
+}
+
+.submenu {
+  margin-left: 20px;
+  display: none;
+}
+
+.submenu.show {
+  display: block;
+}
+
+.topbar {
+  height: 60px;
+  background: white;
+  border-bottom: 1px solid #ddd;
+}
+
+.main-content {
+  flex-grow: 1;
+}

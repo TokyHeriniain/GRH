@@ -1,0 +1,46 @@
+/* Carte */
+.conge-card {
+  background: #ffffff;
+}
+
+/* Table */
+.conge-table thead th {
+  background: linear-gradient(135deg, #0d6efd, #0b5ed7);
+  color: #fff;
+  text-align: center;
+  font-weight: 600;
+  border: none;
+}
+
+.conge-table tbody tr:hover {
+  background-color: #f8f9fa;
+}
+
+/* Actions */
+.actions-cell button {
+  margin: 0 2px;
+}
+
+/* Ligne verrouillée */
+.row-locked {
+  opacity: 0.65;
+}
+
+/* Animation suppression */
+.fade-out {
+  animation: fadeOut 0.4s ease-out forwards;
+}
+
+@keyframes fadeOut {
+  to {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .conge-table td {
+    font-size: 0.85rem;
+  }
+}

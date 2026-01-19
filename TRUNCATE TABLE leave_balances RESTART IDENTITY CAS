@@ -1,0 +1,172 @@
+TRUNCATE TABLE leave_balances RESTART IDENTITY CASCADE;
+TRUNCATE TABLE leaves RESTART IDENTITY CASCADE;
+TRUNCATE TABLE import_histories RESTART IDENTITY CASCADE;
+TRUNCATE TABLE annual_leave_closures RESTART IDENTITY CASCADE;
+TRUNCATE TABLE personnels RESTART IDENTITY CASCADE;
+TRUNCATE TABLE directions RESTART IDENTITY CASCADE;
+TRUNCATE TABLE services RESTART IDENTITY CASCADE;
+TRUNCATE TABLE fonctions RESTART IDENTITY CASCADE;
+
+SELECT
+    direction,
+    service,
+    SUM(jours_utilises) AS total_jours_utilises
+FROM leaves
+WHERE approuve_rh = true
+  AND EXTRACT(YEAR FROM date_debut) = :annee
+  AND (:direction IS NULL OR direction = :direction)
+  AND (:service IS NULL OR service = :service)
+GROUP BY direction, service;
+
+CREATE UNIQUE INDEX leave_unique_period
+ON leaves (personnel_id, date_debut, date_fin, heure_debut, heure_fin);
+
+
+UPDATE leave_balances
+SET annee_reference = EXTRACT(YEAR FROM CURRENT_DATE) - 1
+WHERE annee_reference IS NULL;
+
+UPDATE leave_types
+SET autorise_solde_negatif = true
+WHERE code = 'ANTICIPE';
+
+
+ALTER TABLE leave_balances
+ADD CONSTRAINT uq_leave_balance_personnel_annee
+UNIQUE (personnel_id, annee_reference);
+
+ALTER TABLE leave_balances
+ALTER COLUMN annee_reference SET NOT NULL;
+
+
+
+ALTER TABLE leave_balances
+ALTER COLUMN annee_reference SET NOT NULL;
+
+BEGIN;
+
+-- 1️⃣ Audits congés
+DELETE FROM leave_audits;
+
+-- 2️⃣ Clôtures annuelles
+DELETE FROM annual_leave_closures;
+
+-- 3️⃣ Soldes de congés
+DELETE FROM leave_balances;
+
+-- 4️⃣ Congés
+DELETE FROM leaves;
+
+-- 5️⃣ (OPTIONNEL) Réinitialisation personnels
+-- ⚠️ Décommente seulement si tu veux TOUT réimporter
+-- DELETE FROM personnels;
+
+-- 6️⃣ (OPTIONNEL) Référentiels si nécessaire
+-- DELETE FROM fonctions;
+-- DELETE FROM services;
+-- DELETE FROM directions;
+
+COMMIT;
+
+
+BACKEND – Controller
+AdminRHController.php
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Support\Facades\DB;
+use Illuminate\Http\Request;
+use App\Services\LeaveAuditService;
+
+class AdminRHController extends Controller
+{
+    public function resetBaseRH(Request $request)
+    {
+        // 🔐 Sécurité minimale
+        if (!auth()->user() || !auth()->user()->is_admin) {
+            abort(403, "Action non autorisée");
+        }
+
+        DB::transaction(function () {
+
+            DB::table('leave_audits')->delete();
+            DB::table('annual_leave_closures')->delete();
+            DB::table('leave_balances')->delete();
+            DB::table('leaves')->delete();
+        });
+
+        // 📜 Trace RH
+        app(LeaveAuditService::class)->log(
+            'RESET_BASE_RH',
+            null,
+            null,
+            [],
+            [
+                'message' => 'Réinitialisation complète de la base RH congés',
+                'user'    => auth()->user()->name ?? 'ADMIN',
+                'date'    => now()->toIso8601String(),
+            ]
+        );
+
+        return response()->json([
+            'message' => 'Base RH réinitialisée avec succès'
+        ]);
+    }
+}
+
+🛣️ Route API
+Route::post('/admin/rh/reset', [AdminRHController::class, 'resetBaseRH'])
+    ->middleware(['auth:sanctum']);
+
+🖥️ FRONT – Bouton React sécurisé
+Exemple : AdminRHPanel.jsx
+import React from "react";
+import axios from "axios";
+import { Button } from "react-bootstrap";
+
+export default function AdminRHPanel() {
+
+  const resetRH = () => {
+    if (!window.confirm(
+      "⚠️ ATTENTION ⚠️\n\nCette action supprimera TOUTES les données RH de congés.\n\nContinuer ?"
+    )) return;
+
+    axios.post("/api/admin/rh/reset")
+      .then(() => {
+        alert("✅ Base RH réinitialisée");
+        window.location.reload();
+      })
+      .catch(() => {
+        alert("❌ Erreur lors de la réinitialisation");
+      });
+  };
+
+  return (
+    <div className="mt-4">
+      <Button variant="danger" onClick={resetRH}>
+        🧹 Réinitialiser la base RH
+      </Button>
+    </div>
+  );
+}
+
+📋 Checklist RH AVANT NOUVEL IMPORT
+
+✔️ Base RH vide
+✔️ Aucun solde 2026
+✔️ Aucun audit parasite
+✔️ Aucun calcul automatique
+✔️ Import figé 31/12/2025
+
+🟢 Prochaine étape (quand tu veux)
+
+👉 Je te propose ensuite :
+
+🧪 scénario test RH complet (import → clôture → 2026)
+
+📊 écran de contrôle RH avant/après clôture
+
+🔐 verrouillage définitif après clôture
+
+Dis-moi 👉 on continu
