@@ -162,7 +162,44 @@ export default function HistoriqueConge({ reload }) {
           </Col>
         </Row>
       </Form>
+      <div className="d-flex gap-2 mb-3">
+        <Button
+          variant="outline-danger"
+          onClick={() =>
+            window.open(
+              `/api/conges/historique/export/pdf?preview=1&${new URLSearchParams(filters)}`,
+              "_blank"
+            )
+          }
+        >
+          👁 Aperçu PDF
+        </Button>
 
+        <Button
+          variant="danger"
+          onClick={() =>
+            window.open(
+              `/api/conges/historique/export/pdf?${new URLSearchParams(filters)}`,
+              "_blank"
+            )
+          }
+        >
+          📄 Export PDF
+        </Button>
+
+        <Button
+          variant="success"
+          onClick={() =>
+            window.open(
+              `/api/conges/historique/export/excel?${new URLSearchParams(filters)}`,
+              "_blank"
+            )
+          }
+        >
+          📊 Export Excel
+        </Button>
+      </div>
+       
       {/* 📋 TABLE */}
       {loading ? (
         <div className="text-center my-4">

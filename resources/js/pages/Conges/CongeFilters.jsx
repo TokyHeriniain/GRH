@@ -33,18 +33,7 @@ export default function CongeFilters({ search, setSearch, filter, setFilter }) {
             <Button variant="outline-secondary" onClick={() => { setSearch(""); setFilter("all"); }}>
               Reset
             </Button>
-          </Col>
-
-          <Col md="auto" className="ms-auto">
-            <ButtonGroup>
-              <Button variant="success" href={`/api/leaves/export/excel?status=${filter}&search=${search}`}>
-                Excel
-              </Button>
-              <Button variant="danger" href={`/api/leaves/export/pdf?status=${filter}&search=${search}`} target="_blank">
-                PDF
-              </Button>
-            </ButtonGroup>
-          </Col>
+          </Col>         
         </Row>
       </Card.Body>
     </Card>

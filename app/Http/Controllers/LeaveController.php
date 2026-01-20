@@ -90,71 +90,63 @@ class LeaveController extends Controller
     {
         $updated = $this->service->rejectRH($leave, auth()->id(), $request->rejection_reason ?? null);
         return response()->json(['message' => 'Congé rejeté RH', 'data' => $updated]);
-    }
-    /* =========================================================
-     |  EXPORTS
-     ========================================================= */
-    public function exportExcel(Request $request)
-    {
-        return Excel::download(
-            new HistoriqueCongesExport($request->all()),
-            'historique_conges.xlsx'
-        );
-    }
-
-    public function exportPDF(Request $request)
-    {
-        $status = $request->query('status', 'all');
-        $search = $request->query('search', '');
-
-        $leaves = Leave::with(['personnel.direction', 'leaveType'])
-            ->when($status !== 'all', fn($q) => $q->where('status', $status))
-            ->when($search, fn($q) => $q->whereHas('personnel', fn($q2) => 
-                $q2->whereRaw("LOWER(CONCAT(nom,' ',prenom)) LIKE ?", ['%' . strtolower($search) . '%'])
-                   ->orWhere('matricule', 'LIKE', "%$search%")
-            ))
-            ->orderBy('date_debut', 'desc')
-            ->get();
-
-        $pdf = Pdf::loadView('pdf.leaves', [
-            'leaves' => $leaves,
-            'dateExport' => now()->format('d/m/Y H:i'),
-        ])->setPaper('A4', 'landscape');
-
-        return $pdf->download('conges_' . now()->format('Ymd_His') . '.pdf');
-    }
+    }    
 
     /**
     * HISTORIQUE
      */
+    private function historiqueQuery(Request $request)
+    {
+        return Leave::with(['personnel', 'leaveType'])
+            ->when($request->personnel_id, fn($q) =>
+                $q->where('personnel_id', $request->personnel_id)
+            )
+            ->when($request->leave_type_id, fn($q) =>
+                $q->where('leave_type_id', $request->leave_type_id)
+            )
+            ->when($request->status, fn($q) =>
+                $q->where('status', $request->status)
+            )
+            ->when($request->date_debut, fn($q) =>
+                $q->whereDate('date_debut', '>=', $request->date_debut)
+            )
+            ->when($request->date_fin, fn($q) =>
+                $q->whereDate('date_fin', '<=', $request->date_fin)
+            )
+            ->orderBy('created_at', 'desc');
+    }
+
     public function historique(Request $request)
     {
-        $query = Leave::with(['personnel', 'leaveType']);
-
-        if ($request->filled('personnel_id')) {
-            $query->where('personnel_id', $request->personnel_id);
-        }
-
-        if ($request->filled('leave_type_id')) {
-            $query->where('leave_type_id', $request->leave_type_id);
-        }
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->filled('date_debut')) {
-            $query->whereDate('date_debut', '>=', $request->date_debut);
-        }
-
-        if ($request->filled('date_fin')) {
-            $query->whereDate('date_fin', '<=', $request->date_fin);
-        }
-
         return response()->json(
-            $query
-                ->orderBy('created_at', 'desc')
+            $this->historiqueQuery($request)
                 ->paginate($request->get('per_page', 10))
         );
     }
+
+    public function exportHistoriqueExcel(Request $request)
+    {
+        $data = $this->historiqueQuery($request)->get();
+
+        return \Excel::download(
+            new HistoriqueCongesExport($request->all()),
+            'historique_conges.xlsx'
+        );
+    }       
+    
+    public function exportHistoriquePdf(Request $request)
+    {
+        $data = $this->historiqueQuery($request)->get();
+
+        $pdf = Pdf::loadView('pdf.historique_conges', [
+            'leaves' => $data,
+            'dateExport' => now()->format('d/m/Y H:i'),
+        ])->setPaper('A4', 'landscape');
+
+        return $request->preview
+            ? $pdf->stream('apercu_historique_conges.pdf')
+            : $pdf->download('historique_conges_' . now()->format('Ymd_His') . '.pdf');
+    }
+
+
 }

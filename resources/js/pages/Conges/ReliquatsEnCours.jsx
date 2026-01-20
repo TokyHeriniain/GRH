@@ -174,7 +174,7 @@ export default function ReliquatsEnCours({ reload }) {
           Export PDF
         </Button>
         <Button
-          variant="secondary"
+          variant="outline-danger"
           onClick={() =>
             window.open(
               `/api/rh/reliquats/export/pdf?preview=1&${buildExportParams()}`,
@@ -182,7 +182,7 @@ export default function ReliquatsEnCours({ reload }) {
             )
           }
         >
-          👁️ Aperçu avant impression
+          👁️ Aperçu PDF
         </Button>
         <Button
           variant="primary"

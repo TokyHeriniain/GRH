@@ -18,8 +18,7 @@ use App\Http\Controllers\{
     ImportLegacyDataController,
     LeaveBalanceController,
     PersonnelSoldesController,
-    LeaveExportController,
-    ClotureCongeController
+    LeaveExportController
     
 };
 use App\Http\Controllers\Api\PersonnelImportController;
@@ -105,14 +104,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/reliquats/{annee}', [RHRelicatController::class, 'index']);
         Route::get('/reliquats/export/excel/{annee}', [RHRelicatController::class, 'exportExcel']);
         Route::get('/reliquats/export/pdf/{annee}', [RHRelicatController::class, 'exportPdf']);
-    });
-    Route::prefix('cloture/reliquats')->group(function () {
-        Route::get('/avant', [ClotureCongeController::class, 'reliquatsAvantCloture']);
-        Route::get('/apres', [ClotureCongeController::class, 'reliquatsApresCloture']);
-
-        Route::get('/apres/export/pdf', [ClotureCongeController::class, 'exportPdf']);
-        Route::get('/apres/export/excel', [ClotureCongeController::class, 'exportExcel']);
-    });
+    });   
 
 
      // 📅 Gestion des congés
@@ -125,14 +117,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::post('/leaves/{leave}/approve', [LeaveController::class, 'approveRH']);
         Route::post('/leaves/{leave}/reject', [LeaveController::class, 'rejectRH']);
-
-        Route::get('/leaves/export/excel', [LeaveController::class, 'exportExcel']);
-        Route::get('/leaves/export/pdf', [LeaveController::class, 'exportPDF']);
     });
-
-
     Route::get('/rh/exports/annual/{annee}',[LeaveExportController::class, 'exportAnnualRh']);
-
 
     Route::middleware(['auth:sanctum'])->group(function () {
 
@@ -147,8 +133,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // SOLDES VIA LE SERVICE DEDIE
     Route::get('/personnels/{id}/soldes', [LeaveBalanceController::class, 'show']);
     Route::get('/conges/historique', [LeaveController::class, 'historique']);
-    /* Route::get('/conges/export-excel', [LeaveController::class, 'exportExcel']);
-    Route::get('/conges/export-pdf', [LeaveController::class, 'exportPdf']); */
+    Route::get('/conges/historique/export/excel', [LeaveController::class, 'exportHistoriqueExcel']);
+    Route::get('/conges/historique/export/pdf', [LeaveController::class, 'exportHistoriquePdf']);
 
     //Report solde et cloture
     Route::prefix('rh/cloture')->group(function () {

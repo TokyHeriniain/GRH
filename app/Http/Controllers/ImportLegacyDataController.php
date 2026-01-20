@@ -52,12 +52,10 @@ class ImportLegacyDataController extends Controller
                     $directionNom  = trim($row['F'] ?? '');
                     $dateEntreeRaw = $row['G'] ?? null;
                     $droitExcel    = floatval($row['H'] ?? 0);
-
                     $billet        = floatval($row['I'] ?? 0);
                     $conge         = floatval($row['J'] ?? 0);
-                    $dispensaire   = floatval($row['K'] ?? 0);
-                    $convention    = floatval($row['L'] ?? 0);
-
+                    $CIN           = trim($row['K'] ?? '');
+                    $adresse       = trim($row['L'] ?? '');
                     $dateNaissanceRaw = $row['M'] ?? null;
 
                     if (!$matricule || !$nom) {
@@ -96,6 +94,8 @@ class ImportLegacyDataController extends Controller
                             'fonction_id'    => $fonction->id,
                             'service_id'     => $service->id,
                             'direction_id'   => $direction->id,
+                            'cin'            => $CIN,
+                            'adresse'        => $adresse,       
                         ]
                     );
 
@@ -103,7 +103,7 @@ class ImportLegacyDataController extends Controller
                     // 4️⃣ Calcul du DROIT
                     // ==============================
                     // 🔒 RÈGLE IMPORT LEGACY : si Excel contient une valeur (même négative), on la respecte
-                    if ($row['H'] !== null && $row['H'] !== '') {
+                    if ($row['H'] !== null && $row['H'] !== '' && $row['H'] == 0) {
                         $droit = round((float) $row['H'], 2);
                     } else {
                         if (!$dateEntree) {
@@ -149,8 +149,6 @@ class ImportLegacyDataController extends Controller
                             'soldes_par_type' => [
                                 'billet'       => $billet,
                                 'conge'        => $conge,
-                                'dispensaire'  => $dispensaire,
-                                'convention'   => $convention,
                             ],
                         ]
                     );
