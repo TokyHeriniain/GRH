@@ -2,26 +2,27 @@
 
 namespace App\Exports\Reliquats;
 
+use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithTitle;
 
 class ReliquatsSheetExport implements FromCollection, WithHeadings, WithTitle
 {
-    protected $direction;
-    protected $rows;
-    protected $annee;
+    protected Collection $rows;
+    protected int $annee;
+    protected string $title;
 
-    public function __construct(string $direction, $rows, int $annee)
+    public function __construct(Collection $rows, int $annee, string $title)
     {
-        $this->direction = $direction;
-        $this->rows      = $rows;
-        $this->annee     = $annee;
+        $this->rows  = $rows;
+        $this->annee = $annee;
+        $this->title = $title;
     }
 
     public function title(): string
     {
-        return mb_substr($this->direction, 0, 31); // limite Excel
+        return mb_substr($this->title, 0, 31);
     }
 
     public function headings(): array
@@ -35,14 +36,14 @@ class ReliquatsSheetExport implements FromCollection, WithHeadings, WithTitle
         ];
     }
 
-    public function collection()
+    public function collection(): Collection
     {
         return $this->rows->map(fn ($r) => [
-            $r['matricule'],
-            $r['personnel'],
-            $r['direction'],
-            $r['service'],
-            round($r['reliquat'], 2),
+            $r['matricule'] ?? '',
+            $r['personnel'] ?? '',
+            $r['direction'] ?? '',
+            $r['service'] ?? '',
+            round((float) ($r['reliquat'] ?? 0), 2),
         ]);
     }
 }

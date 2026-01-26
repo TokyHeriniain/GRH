@@ -84,21 +84,28 @@ class ReliquatController extends Controller
 
 
     // 📄 EXPORT EXCEL
+    // ReliquatController.php
     public function exportExcel(Request $request, LeaveBalanceService $service)
     {
         $annee = now()->year;
 
-        $rows = $this->index($request, $service)->getData()->data;
+        $response = $this->index($request, $service)->getData(true);
+        $rows = collect($response['data'] ?? []);
 
-        if (empty($rows)) {
+        if ($rows->isEmpty()) {
             abort(404, 'Aucune donnée à exporter');
         }
 
         return Excel::download(
-            new ReliquatsSheetExport($rows),
+            new ReliquatsSheetExport(
+                $rows,
+                $annee,
+                'Reliquats'
+            ),
             "reliquats_{$annee}.xlsx"
         );
     }
+
 
     // 📄 EXPORT PDF
     public function exportPdf(Request $request, LeaveBalanceService $service)

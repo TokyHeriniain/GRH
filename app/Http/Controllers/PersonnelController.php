@@ -14,59 +14,107 @@ use App\Models\Leave;
 use App\Models\LeaveType;
 use Maatwebsite\Excel\Facades\Excel;
 use Barryvdh\DomPDF\Facade as PDF;
-use ZipArchive;
 use Carbon\Carbon;
 
 class PersonnelController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Personnel::with(['direction', 'service', 'fonction']);
+        $query = Personnel::query()
+            ->with(['direction', 'service', 'fonction']);
 
-        if ($request->filled('nom')) {
-            $query->where('nom', 'ILIKE', '%' . $request->nom . '%');
+        // 🔎 Recherche texte (accent-insensitive)
+        if ($request->filled('q')) {
+            $q = trim($request->q);
+
+            $query->where(function ($sub) use ($q) {
+                $sub->whereRaw(
+                        "unaccent(lower(nom)) LIKE unaccent(lower(?))",
+                        ["%{$q}%"]
+                    )
+                    ->orWhereRaw(
+                        "unaccent(lower(prenom)) LIKE unaccent(lower(?))",
+                        ["%{$q}%"]
+                    )
+                    ->orWhereRaw(
+                        "unaccent(lower(matricule)) LIKE unaccent(lower(?))",
+                        ["%{$q}%"]
+                    )
+                    ->orWhereRaw(
+                        "unaccent(lower(cin)) LIKE unaccent(lower(?))",
+                        ["%{$q}%"]
+                    );
+            });
         }
-        if ($request->filled('matricule')) {
-            $query->where('matricule', 'ILIKE', '%' . $request->matricule . '%');
-        }
+
+        // 🏢 Filtres
         if ($request->filled('direction_id')) {
             $query->where('direction_id', $request->direction_id);
         }
 
-        $perPage = 10; // éléments par page
-        $personnels = $query->paginate($perPage);
+        if ($request->filled('service_id')) {
+            $query->where('service_id', $request->service_id);
+        }
 
-        return response()->json($personnels);
+        // 📄 Pagination
+        $perPage = (int) $request->get('per_page', 12);
+
+        return $query
+            ->orderBy('nom')
+            ->paginate($perPage);
     }
-
-
 
     public function store(Request $request)
     {
         $validated = $request->validate([
             'nom' => 'required|string|max:255',
-            'prenom' => 'required|string|max:255',
+            'prenom' => 'nullable|string|max:255',
             'matricule' => 'required|string|max:255|unique:personnels,matricule',
-            'date_naissance' => 'nullable|date',
+
+            'date_naissance' => 'nullable|date|before_or_equal:today',
+            'date_entree' => 'required|date|before_or_equal:today',
+
             'adresse' => 'nullable|string',
             'cin' => 'nullable|string',
             'diplome' => 'nullable|string',
-            'date_entree' => 'nullable|date',
             'photo' => 'nullable|image|max:2048',
+
             'direction_id' => 'required|exists:directions,id',
             'service_id' => 'required|exists:services,id',
             'fonction_id' => 'required|exists:fonctions,id',
         ]);
 
+        // 🔐 Contrôle hiérarchique RH
+        $service = Service::findOrFail($validated['service_id']);
+        if ($service->direction_id != $validated['direction_id']) {
+            abort(422, "Service incohérent avec la direction");
+        }
+
+        $fonction = Fonction::findOrFail($validated['fonction_id']);
+        if ($fonction->service_id != $validated['service_id']) {
+            abort(422, "Fonction incohérente avec le service");
+        }
+
+        // 👶 Âge légal RH (16 ans)
+        if (!empty($validated['date_naissance'])) {
+            if (Carbon::parse($validated['date_entree'])
+                ->lt(Carbon::parse($validated['date_naissance'])->addYears(16))) {
+                abort(422, "Entrée avant l'âge légal RH");
+            }
+        }
+
+        // 📸 Photo
         if ($request->hasFile('photo')) {
             $validated['photo'] = $request->file('photo')->store('photos', 'public');
         }
 
         $personnel = Personnel::create($validated);
 
-        return response()->json($personnel->load('direction', 'service', 'fonction'), 201);
+        return response()->json(
+            $personnel->load('direction', 'service', 'fonction'),
+            201
+        );
     }
-
 
     public function update(Request $request, $id)
     {
@@ -76,31 +124,55 @@ class PersonnelController extends Controller
             'nom' => 'required|string|max:255',
             'prenom' => 'required|string|max:255',
             'matricule' => 'required|string|max:255|unique:personnels,matricule,' . $id,
-            'date_naissance' => 'nullable|date',
+
+            'date_naissance' => 'nullable|date|before_or_equal:today',
+            'date_entree' => 'required|date|before_or_equal:today',
+
             'adresse' => 'nullable|string',
             'cin' => 'nullable|string',
             'diplome' => 'nullable|string',
-            'date_entree' => 'nullable|date',
-            'direction_id' => 'nullable|exists:directions,id',
-            'service_id' => 'nullable|exists:services,id',
-            'fonction_id' => 'nullable|exists:fonctions,id',
             'photo' => 'nullable|image|max:2048',
+
+            'direction_id' => 'required|exists:directions,id',
+            'service_id' => 'required|exists:services,id',
+            'fonction_id' => 'required|exists:fonctions,id',
         ]);
 
-        // Gestion du fichier photo uniquement si une nouvelle est uploadée
+        // 🔐 Contrôle hiérarchique RH
+        $service = Service::findOrFail($validated['service_id']);
+        if ($service->direction_id != $validated['direction_id']) {
+            abort(422, "Service incohérent avec la direction");
+        }
+
+        $fonction = Fonction::findOrFail($validated['fonction_id']);
+        if ($fonction->service_id != $validated['service_id']) {
+            abort(422, "Fonction incohérente avec le service");
+        }
+
+        // 👶 Âge légal RH
+        if (!empty($validated['date_naissance'])) {
+            if (Carbon::parse($validated['date_entree'])
+                ->lt(Carbon::parse($validated['date_naissance'])->addYears(16))) {
+                abort(422, "Entrée avant l'âge légal RH");
+            }
+        }
+
+        // 📸 Photo
         if ($request->hasFile('photo')) {
-            // Supprimer l'ancienne photo si elle existe
             if ($personnel->photo) {
                 Storage::disk('public')->delete($personnel->photo);
             }
-
             $validated['photo'] = $request->file('photo')->store('photos', 'public');
         }
 
         $personnel->update($validated);
 
-        return response()->json(['message' => 'Mise à jour réussie', 'personnel' => $personnel->load('direction', 'service', 'fonction')]);
+        return response()->json([
+            'message' => 'Mise à jour réussie',
+            'personnel' => $personnel->load('direction', 'service', 'fonction')
+        ]);
     }
+
 
 
     public function destroy($id)
@@ -145,32 +217,6 @@ class PersonnelController extends Controller
             'errors' => $import->errors,
         ]);
     }
-
-    public function leaveSummary($id)
-    {
-        $personnel = Personnel::with(['leaves' => function ($query) {
-            $query->where('statut', 'approved')
-                ->select('id', 'personnel_id', 'type', 'date_debut', 'date_fin', 'raison');
-        }])->findOrFail($id);
-
-        // Calcul du droit total, nombre de jours pris et restant
-        $totalRight = 30; // par exemple, configurable ou basé sur l'ancienneté
-        $totalTaken = $personnel->leaves->sum(function ($leave) {
-            return \Carbon\Carbon::parse($leave->date_debut)
-                ->diffInDays(\Carbon\Carbon::parse($leave->date_fin)) + 1;
-        });
-
-        return response()->json([
-            'personnel' => $personnel->nom . ' ' . $personnel->prenom,
-            'matricule' => $personnel->matricule,
-            'fonction' => $personnel->fonction?->nom ?? '',
-            'totalRight' => $totalRight,
-            'totalTaken' => $totalTaken,
-            'remaining' => max($totalRight - $totalTaken, 0),
-            'leaves' => $personnel->leaves,
-        ]);
-    }
-
 
    public function show($id, Request $request)
     {
@@ -235,9 +281,6 @@ class PersonnelController extends Controller
         ]);
     }
 
-
-
-
     public function exportPDF($id)
     {
         $personnel = Personnel::with(['direction', 'service', 'fonction', 'documents'])->findOrFail($id);
@@ -247,39 +290,7 @@ class PersonnelController extends Controller
         return $pdf->download("Fiche_{$personnel->nom}_{$personnel->prenom}.pdf");
     }
 
-    public function exportFichesZip()
-    {
-        $personnels = Personnel::with(['direction', 'service', 'fonction', 'documents'])->get();
-        $zipFileName = 'fiches_personnels.zip';
-        $zipPath = storage_path("app/public/{$zipFileName}");
-
-        // Créer un dossier temporaire
-        $tempDir = storage_path('app/public/tmp_fiches');
-        if (!file_exists($tempDir)) mkdir($tempDir, 0777, true);
-
-        foreach ($personnels as $personnel) {
-            $pdf = PDF::loadView('pdf.personnel-fiche', ['personnel' => $personnel]);
-            $fileName = 'fiche_' . $personnel->matricule . '.pdf';
-            $pdf->save("{$tempDir}/{$fileName}");
-        }
-
-        $zip = new ZipArchive;
-        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === TRUE) {
-            foreach (glob("{$tempDir}/*.pdf") as $file) {
-                $zip->addFile($file, basename($file));
-            }
-            $zip->close();
-        }
-
-        // Supprimer les fichiers temporaires après zip
-        foreach (glob("{$tempDir}/*.pdf") as $file) {
-            unlink($file);
-        }
-        rmdir($tempDir);
-
-        return response()->download($zipPath)->deleteFileAfterSend(true);
-    }
-
+    
     public function search(Request $request)
     {
         $q = $request->query('q', '');

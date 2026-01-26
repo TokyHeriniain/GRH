@@ -11,13 +11,8 @@
             color: #000;
         }
 
-        .page {
-            page-break-after: always;
-        }
-
-        .page:last-child {
-            page-break-after: auto;
-        }
+        .page { page-break-after: always; }
+        .page:last-child { page-break-after: auto; }
 
         .header {
             text-align: center;
@@ -29,19 +24,9 @@
             font-size: 18px;
         }
 
-        .header p {
-            margin: 4px 0;
-            font-size: 12px;
-        }
-
         .meta {
             margin-bottom: 12px;
             font-size: 11px;
-        }
-
-        .meta strong {
-            display: inline-block;
-            width: 120px;
         }
 
         table {
@@ -59,21 +44,17 @@
             background-color: #f0f0f0;
         }
 
-        th.right, td.right {
-            text-align: right;
-        }
-
-        .direction-title {
-            background-color: #d9edf7;
-            font-weight: bold;
-            padding: 6px;
-            border: 1px solid #333;
-            margin-bottom: 6px;
-        }
+        .right { text-align: right; }
 
         .total-row {
             font-weight: bold;
             background-color: #f9f9f9;
+        }
+
+        .note {
+            margin-top: 6px;
+            font-size: 10px;
+            font-style: italic;
         }
 
         .signature {
@@ -116,26 +97,24 @@
 
 <div class="page">
 
-    {{-- ================= HEADER ================= --}}
     <div class="header">
-        <h2>Listes des reliquats de congés</h2>
-        <p>Année {{ $annee }}</p>
+        <h2>Liste des reliquats de congés</h2>
+        <p>Situation au 01/01/{{ $annee }}</p>
     </div>
 
-    {{-- ================= META ================= --}}
     <div class="meta">
         <p><strong>Direction :</strong> {{ $direction ?? 'Non renseignée' }}</p>
+        <p><strong>Année de référence :</strong> {{ $annee }}</p>
         <p><strong>Date d’édition :</strong> {{ now()->format('d/m/Y H:i') }}</p>
     </div>
 
-    {{-- ================= TABLE ================= --}}
     <table>
         <thead>
             <tr>
-                <th style="width:18%">Matricule</th>
-                <th style="width:32%">Nom & Prénom</th>
-                <th style="width:30%">Service</th>
-                <th class="right" style="width:20%">Reliquat (jours)</th>
+                <th>Matricule</th>
+                <th>Nom & Prénom</th>
+                <th>Service</th>
+                <th class="right">Reliquat (jours)</th>
             </tr>
         </thead>
         <tbody>
@@ -149,27 +128,23 @@
             @endforeach
 
             <tr class="total-row">
-                <td colspan="3">Total Personnels</td>
-                <td class="right">
-                    {{ number_format(collect($agents)->count('personnel'), 2) }}
-                </td>
+                <td colspan="3">Total personnels</td>
+                <td class="right">{{ collect($agents)->count() }}</td>
             </tr>
         </tbody>
     </table>
 
-    {{-- ================= SIGNATURE ================= --}}
+    <div class="note">
+        * Reliquats exprimés en jours ouvrés, calculés conformément à la politique RH en vigueur.
+    </div>
+
     <table class="signature">
         <tr>
             <td>
-                <div class="box">
-                    Responsable RH<br>
-                    Nom & Signature
-                </div>
+                <div class="box">Responsable RH<br>Nom & Signature</div>
             </td>
             <td>
-                <div class="box">
-                    Cachet de l’entreprise
-                </div>
+                <div class="box">Cachet de l’entreprise</div>
             </td>
         </tr>
     </table>

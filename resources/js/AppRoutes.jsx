@@ -90,7 +90,7 @@ const AppRoutes = () => {
                     <ProtectedRoute roles={['RH','Admin']}>
                         <PersonnelShow />
                     </ProtectedRoute>
-                }/>
+                }/>                
 
                 <Route path="/structure" element={
                     <ProtectedRoute roles={['RH', 'Admin']}>

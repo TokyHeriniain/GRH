@@ -18,7 +18,6 @@ export default function HistoriqueCongePersonnel({ personnelId }) {
   const [loading, setLoading] = useState(false);
   const [personnel, setPersonnel] = useState(null);
   const [conges, setConges] = useState([]);
-  const [soldes, setSoldes] = useState([]);
   const [leaveTypesMap, setLeaveTypesMap] = useState({});
 
   const [filters, setFilters] = useState({
@@ -49,6 +48,15 @@ export default function HistoriqueCongePersonnel({ personnelId }) {
     }
   };
 
+  const statusLabel = {
+    en_attente: "En attente",
+    approuve_manager: "Approuvé Manager",
+    approuve_rh: "Approuvé RH",
+    rejete: "Rejeté",
+  };
+
+  const hasFilters = Object.values(filters).some(Boolean);
+
   /* ================= FETCH ================= */
   const fetchHistorique = async (page = 1) => {
     if (!personnelId) return;
@@ -60,7 +68,6 @@ export default function HistoriqueCongePersonnel({ personnelId }) {
 
       setPersonnel(res.data.personnel);
       setConges(res.data.conges || []);
-      setSoldes(res.data.soldes || []);
       setPagination((p) => ({
         ...p,
         page,
@@ -77,18 +84,15 @@ export default function HistoriqueCongePersonnel({ personnelId }) {
     fetchHistorique();
   }, [personnelId, filters]);
 
-  /* ================= LOADERS ================= */
+  /* ================= LOAD TYPES ================= */
   const loadLeaveTypes = async (q) => {
     const res = await axios.get(`/api/leave-types-search?q=${q || ""}`);
     const map = {};
-    res.data.forEach((t) => {
-      map[t.id] = t.nom;
-    });
+    res.data.forEach((t) => (map[t.id] = t.nom));
     setLeaveTypesMap(map);
     return res.data.map((t) => ({ value: t.id, label: t.nom }));
   };
 
-  /* ================= RESET FILTERS ================= */
   const resetFilters = () => {
     setFilters({
       status: "",
@@ -99,35 +103,26 @@ export default function HistoriqueCongePersonnel({ personnelId }) {
   };
 
   /* ================= PAGINATION ================= */
-  const handlePageChange = (page) => {
-    fetchHistorique(page);
-  };
+  const handlePageChange = (page) => fetchHistorique(page);
 
   const renderPagination = () => {
     const pages = Math.ceil(pagination.total / pagination.perPage);
     if (pages <= 1) return null;
-    let items = [];
-    for (let i = 1; i <= pages; i++) {
-      items.push(
-        <Pagination.Item
-          key={i}
-          active={i === pagination.page}
-          onClick={() => handlePageChange(i)}
-        >
-          {i}
-        </Pagination.Item>
-      );
-    }
-    return <Pagination>{items}</Pagination>;
-  };
 
-  if (!personnelId) {
     return (
-      <Card className="p-4 text-center text-muted">
-        Sélectionnez un personnel pour voir l’historique
-      </Card>
+      <Pagination>
+        {[...Array(pages)].map((_, i) => (
+          <Pagination.Item
+            key={i + 1}
+            active={i + 1 === pagination.page}
+            onClick={() => handlePageChange(i + 1)}
+          >
+            {i + 1}
+          </Pagination.Item>
+        ))}
+      </Pagination>
     );
-  }
+  };
 
   return (
     <div className="p-3">
@@ -138,41 +133,14 @@ export default function HistoriqueCongePersonnel({ personnelId }) {
       )}
 
       {personnel && (
-        <Card className="mb-4 shadow-sm">
+        <Card className="mb-3 shadow-sm">
           <Card.Body>
-            <h5>
-              📜 Historique des congés – {personnel.matricule} |{" "}
-              {personnel.nom} {personnel.prenom}
-            </h5>
+            <h5 className="mb-1">📜 Historique des congés</h5>
+            <small className="text-muted">
+              {personnel.matricule} – {personnel.nom} {personnel.prenom}
+            </small>
           </Card.Body>
         </Card>
-      )}
-
-      {/* ================= SOLDES ================= */}
-      {soldes.length > 0 && (
-        <Row className="mb-4">
-          {soldes.map((s) => (
-            <Col md={4} key={s.leave_type_id}>
-              <Card className="shadow-sm">
-                <Card.Body>
-                  <strong>
-                    {s.leave_type}{" "}
-                    {s.est_exceptionnel && (
-                      <Badge bg="warning" text="dark">
-                        Exceptionnel
-                      </Badge>
-                    )}
-                  </strong>
-                  <div>Droit : {n(s.droit_total)} j</div>
-                  <div>Utilisés : {n(s.jours_utilises)} j</div>
-                  <Badge bg={s.solde_restant >= 0 ? "success" : "danger"}>
-                    Solde : {n(s.solde_restant)} j
-                  </Badge>
-                </Card.Body>
-              </Card>
-            </Col>
-          ))}
-        </Row>
       )}
 
       {/* ================= FILTRES ================= */}
@@ -242,16 +210,21 @@ export default function HistoriqueCongePersonnel({ personnelId }) {
 
               <Col md={6} className="mt-2">
                 <Button
-                  variant="primary"
                   className="w-100"
+                  disabled={!hasFilters}
                   onClick={() => fetchHistorique()}
                 >
                   Appliquer
                 </Button>
               </Col>
+
               <Col md={6} className="mt-2">
-                <Button variant="secondary" className="w-100" onClick={resetFilters}>
-                  Réinitialiser les filtres
+                <Button
+                  variant="secondary"
+                  className="w-100"
+                  onClick={resetFilters}
+                >
+                  Réinitialiser
                 </Button>
               </Col>
             </Row>
@@ -267,38 +240,47 @@ export default function HistoriqueCongePersonnel({ personnelId }) {
               <tr>
                 <th>Type</th>
                 <th>Période</th>
-                <th>Jours</th>
+                <th className="text-end">Jours</th>
                 <th>Statut</th>
+                <th>Validé / saisi le</th>
+                <th>Validé par</th>
               </tr>
             </thead>
             <tbody>
               {conges.length > 0 ? (
                 conges.map((c) => (
                   <tr key={c.id}>
+                    <td>{c.leave_type?.nom}</td>
                     <td>
-                      {c.leave_type?.nom}{" "}
-                      {c.leave_type?.est_exceptionnel && (
-                        <Badge bg="warning" text="dark">
-                          Exceptionnel
-                        </Badge>
-                      )}
-                    </td>
-                    <td>
-                      {dayjs(c.date_debut).format("DD/MM/YYYY")} {c.heure_debut}
+                      {dayjs(c.date_debut).format("DD/MM/YYYY")}{" "}
+                      {c.heure_debut}
                       <br />
-                      {dayjs(c.date_fin).format("DD/MM/YYYY")} {c.heure_fin}
+                      {dayjs(c.date_fin).format("DD/MM/YYYY")}{" "}
+                      {c.heure_fin}
                     </td>
-                    <td>{n(c.jours_utilises)} j</td>
+                    <td className="text-end">{n(c.jours_utilises)} j</td>
                     <td>
                       <Badge bg={statusVariant(c.status)}>
-                        {c.status.replace("_", " ")}
+                        {statusLabel[c.status]}
                       </Badge>
+                    </td>
+                    <td>
+                      {dayjs(
+                        c.status === "en_attente"
+                          ? c.created_at
+                          : c.updated_at
+                      ).format("DD/MM/YYYY HH:mm")}
+                    </td>
+                    <td>
+                      {c.validated_by?.name ||
+                        c.validated_by_name ||
+                        "-"}
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={4} className="text-center text-muted">
+                  <td colSpan={6} className="text-center text-muted">
                     Aucun congé trouvé
                   </td>
                 </tr>
@@ -308,7 +290,6 @@ export default function HistoriqueCongePersonnel({ personnelId }) {
         </Card.Body>
       </Card>
 
-      {/* ================= PAGINATION ================= */}
       <div className="mt-3 d-flex justify-content-center">
         {renderPagination()}
       </div>

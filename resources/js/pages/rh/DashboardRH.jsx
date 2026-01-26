@@ -5,6 +5,7 @@ import CongesParTypeChart from "./charts/CongesParTypeChart";
 import CongesMensuelsChart from "./charts/CongesMensuelsChart";
 import TauxApprobationCard from "./charts/TauxApprobationCard";
 import NavigationLayout from "../../components/NavigationLayout";
+import ComparatifAnnuel from "./charts/ComparatifAnnuel";
 
 export default function DashboardRH() {
   const [data, setData] = useState(null);
@@ -35,6 +36,11 @@ export default function DashboardRH() {
         <div className="col-md-12">
           <CongesMensuelsChart data={data.repartition_mensuelle} />
         </div>
+
+        <div>
+          <ComparatifAnnuel />
+        </div>
+
       </div>
     </div>
     </NavigationLayout>

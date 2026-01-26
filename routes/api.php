@@ -57,7 +57,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/personnels',                    [PersonnelController::class, 'store']);
     Route::put('/personnels/{id}',                [PersonnelController::class, 'update']);
     Route::delete('/personnels/{id}',             [PersonnelController::class, 'destroy']);
-    Route::get('/personnels/{id}/leaves-summary', [PersonnelController::class, 'leaveSummary']);
     Route::post('/personnels/delete-multiple',    [PersonnelController::class, 'deleteMultiple']); 
     
     //Reliquat
@@ -83,7 +82,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/personnels/export-excel', [PersonnelExportController::class, 'exportExcel']);
     Route::get('/personnels/export-pdf', [PersonnelExportController::class, 'exportPDF']);
     Route::get('/personnels/{id}/export-pdf', [PersonnelExportController::class, 'exportSinglePDF']);
-    Route::get('/personnels/export-fiches-zip', [PersonnelController::class, 'exportFichesZip']);
     
 
     Route::post('/import/legacy', [ImportLegacyDataController::class, 'import']);
@@ -158,6 +156,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::prefix('rh')->group(function () {
         Route::get('/dashboard', [RhDashboardController::class, 'index']);
+        Route::get('/dashboard/comparatif', [RhDashboardController::class, 'comparatif']);
         Route::get('/journal', [RhAuditController::class, 'index']);
         Route::get('/journal/export/excel', [RhAuditController::class, 'exportExcel']);
         Route::get('/journal/export/pdf', [RhAuditController::class, 'exportPdf']);

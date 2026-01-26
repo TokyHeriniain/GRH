@@ -87,4 +87,64 @@ class RhDashboardController extends Controller
             ->orderBy('mois')
             ->get();
     }
+
+    
+
+    public function comparatif()
+    {
+        $anneeN = now()->year;
+        $anneeN1 = $anneeN - 1;
+
+        $stats = function ($annee) {
+            return [
+                'total_conges' => Leave::whereYear('date_debut', $annee)->count(),
+
+                'jours_utilises' => Leave::whereYear('date_debut', $annee)
+                    ->where('status', 'approuve_rh')
+                    ->sum('jours_utilises'),
+
+                'pertes' => AnnualLeaveClosure::where('annee', $annee)
+                    ->sum('perte'),
+            ];
+        };
+
+        $n = $stats($anneeN);
+        $n1 = $stats($anneeN1);
+
+        return response()->json([
+            'annee_n' => $anneeN,
+            'annee_n1' => $anneeN1,
+
+            'data' => [
+                'conges' => [
+                    'n' => $n['total_conges'],
+                    'n1' => $n1['total_conges'],
+                    'evolution' => $this->evolution($n1['total_conges'], $n['total_conges']),
+                ],
+                'jours' => [
+                    'n' => round($n['jours_utilises'], 2),
+                    'n1' => round($n1['jours_utilises'], 2),
+                    'evolution' => $this->evolution($n1['jours_utilises'], $n['jours_utilises']),
+                ],
+                'pertes' => [
+                    'n' => round($n['pertes'], 2),
+                    'n1' => round($n1['pertes'], 2),
+                    'evolution' => $this->evolution($n1['pertes'], $n['pertes']),
+                ],
+            ],
+        ]);
+    }
+
+    /* ======================
+    CALCUL EVOLUTION %
+    ====================== */
+    private function evolution($ancien, $nouveau)
+    {
+        if ($ancien == 0) {
+            return $nouveau > 0 ? 100 : 0;
+        }
+
+        return round((($nouveau - $ancien) / $ancien) * 100, 2);
+    }
+
 }

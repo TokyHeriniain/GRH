@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card, Tabs, Tab, Button, Spinner } from "react-bootstrap";
 import axios from "@/axios";
 import NavigationLayout from "../NavigationLayout";
+import { toast } from "react-toastify";
 
 import PersonnelInfos from "./tabs/PersonnelInfos";
 import PersonnelSoldes from "./tabs/PersonnelSoldes";
@@ -15,13 +16,14 @@ export default function PersonnelShow() {
 
   const [personnel, setPersonnel] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [annee, setAnnee] = useState(new Date().getFullYear()); // prêt pour évolution
 
   const fetchPersonnel = async () => {
     try {
       const res = await axios.get(`/api/personnels/${id}`);
       setPersonnel(res.data.personnel);
     } catch (e) {
-      console.error(e);
+      toast.error("Impossible de charger le personnel");
     } finally {
       setLoading(false);
     }
@@ -57,7 +59,7 @@ export default function PersonnelShow() {
       <div className="container mt-4">
 
         {/* Header fiche */}
-        <Card className="mb-3">
+        <Card className="mb-3 shadow-sm">
           <Card.Body className="d-flex justify-content-between align-items-center">
             <div>
               <h4 className="mb-0">
@@ -75,20 +77,21 @@ export default function PersonnelShow() {
         </Card>
 
         {/* Onglets RH */}
-        <Tabs defaultActiveKey="infos" className="mb-3">
+        <Tabs defaultActiveKey="infos" className="mb-3" mountOnEnter unmountOnExit>
           <Tab eventKey="infos" title="📄 Informations">
             <PersonnelInfos personnel={personnel} />
           </Tab>
 
           <Tab eventKey="soldes" title="📊 Soldes congés">
-            <PersonnelSoldes personnelId={personnel.id} />
+            <PersonnelSoldes personnelId={personnel.id} annee={annee} />
           </Tab>
 
           <Tab eventKey="conges" title="🗂️ Historique congés">
-            <HistoriqueCongePersonnel personnelId={id} />
+            <HistoriqueCongePersonnel personnelId={personnel.id} />
           </Tab>
-          <Tab eventKey="documents" title="🗂️ Gestion des Documents">
-            <PersonnelDocuments personnelId={id} />
+
+          <Tab eventKey="documents" title="📁 Documents RH">
+            <PersonnelDocuments personnelId={personnel.id} />
           </Tab>
         </Tabs>
       </div>

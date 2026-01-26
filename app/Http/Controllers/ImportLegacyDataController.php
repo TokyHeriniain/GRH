@@ -11,21 +11,26 @@ use App\Models\LeaveBalance;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpSpreadsheet\IOFactory;
-use Carbon\Carbon;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
+use Carbon\Carbon;
 
 class ImportLegacyDataController extends Controller
 {
+    /**
+     * 🔒 Année RH figée pour import legacy
+     */
     private const ANNEE_IMPORT = 2025;
+
     public function import(Request $request)
     {
         if (!$request->hasFile('file')) {
             return response()->json(['error' => 'Aucun fichier fourni'], 400);
         }
 
-        $file = $request->file('file');
-        $spreadsheet = IOFactory::load($file->getRealPath());
+        $spreadsheet = IOFactory::load($request->file('file')->getRealPath());
         $sheet = $spreadsheet->getSheet(0);
+
+        // ⚠️ On ne fait PLUS confiance à toArray() pour les dates
         $rows = $sheet->toArray(null, true, true, true);
 
         $importes = 0;
@@ -34,37 +39,42 @@ class ImportLegacyDataController extends Controller
         DB::beginTransaction();
 
         try {
-
             foreach ($rows as $index => $row) {
 
-                if ($index === 1) continue; // entête
+                // ⛔ Ignore l’en-tête
+                if ($index === 1) {
+                    continue;
+                }
 
                 try {
+                    /* =====================================================
+                     * 1️⃣ DONNÉES EXCEL (BRUTES)
+                     * ===================================================== */
+                    $matricule    = trim($row['A'] ?? '');
+                    $nom          = trim($row['B'] ?? '');
+                    $prenom       = trim($row['C'] ?? '');
+                    $fonctionNom  = trim($row['D'] ?? '');
+                    $serviceNom   = trim($row['E'] ?? '');
+                    $directionNom = trim($row['F'] ?? '');
 
-                    // ==============================
-                    // 1️⃣ Données de base
-                    // ==============================
-                    $matricule     = trim($row['A'] ?? '');
-                    $nom           = trim($row['B'] ?? '');
-                    $prenom        = trim($row['C'] ?? '');
-                    $fonctionNom   = trim($row['D'] ?? '');
-                    $serviceNom    = trim($row['E'] ?? '');
-                    $directionNom  = trim($row['F'] ?? '');
-                    $dateEntreeRaw = $row['G'] ?? null;
-                    $droitExcel    = floatval($row['H'] ?? 0);
-                    $billet        = floatval($row['I'] ?? 0);
-                    $conge         = floatval($row['J'] ?? 0);
-                    $CIN           = trim($row['K'] ?? '');
-                    $adresse       = trim($row['L'] ?? '');
-                    $dateNaissanceRaw = $row['M'] ?? null;
+                    // 🔐 Lecture sécurisée des dates Excel
+                    $dateEntreeExcel     = $this->getCellDateSafe($sheet, "G{$index}");
+                    $dateNaissanceExcel = $this->getCellDateSafe($sheet, "M{$index}");
+
+                    $cellDroit = trim((string) ($row['H'] ?? ''));
+                    $billet    = round((float) ($row['I'] ?? 0), 2);
+                    $conge     = round((float) ($row['J'] ?? 0), 2);
+
+                    $cin     = trim($row['K'] ?? '');
+                    $adresse = trim($row['L'] ?? '');
 
                     if (!$matricule || !$nom) {
                         throw new \Exception("Matricule ou nom manquant");
                     }
 
-                    // ==============================
-                    // 2️⃣ Référentiels
-                    // ==============================
+                    /* =====================================================
+                     * 2️⃣ RÉFÉRENTIELS (AUTO-CRÉATION)
+                     * ===================================================== */
                     $direction = Direction::firstOrCreate([
                         'nom' => $directionNom ?: 'Non spécifiée'
                     ]);
@@ -79,84 +89,112 @@ class ImportLegacyDataController extends Controller
                         'service_id' => $service->id
                     ]);
 
-                    // ==============================
-                    // 3️⃣ Personnel
-                    // ==============================
-                    $dateEntree = $this->convertDate($dateEntreeRaw);
+                    /* =====================================================
+                     * 3️⃣ PERSONNEL (DATES PROTÉGÉES)
+                     * ===================================================== */
+                    $personnel = Personnel::where('matricule', $matricule)->first();
 
-                    $personnel = Personnel::updateOrCreate(
-                        ['matricule' => $matricule],
-                        [
-                            'nom'            => $nom,
-                            'prenom'         => $prenom,
-                            'date_naissance' => $this->convertDate($dateNaissanceRaw),
-                            'date_entree'    => $dateEntree,
-                            'fonction_id'    => $fonction->id,
-                            'service_id'     => $service->id,
-                            'direction_id'   => $direction->id,
-                            'cin'            => $CIN,
-                            'adresse'        => $adresse,       
-                        ]
-                    );
-
-                    // ==============================
-                    // 4️⃣ Calcul du DROIT
-                    // ==============================
-                    // 🔒 RÈGLE IMPORT LEGACY : si Excel contient une valeur (même négative), on la respecte
-                    if ($row['H'] !== null && $row['H'] !== '' && $row['H'] == 0) {
-                        $droit = round((float) $row['H'], 2);
+                    if (!$personnel) {
+                        // ➕ Création
+                        $personnel = Personnel::create([
+                            'matricule'       => $matricule,
+                            'nom'             => $nom,
+                            'prenom'          => $prenom,
+                            'date_entree'     => $dateEntreeExcel,
+                            'date_naissance'  => $dateNaissanceExcel,
+                            'fonction_id'     => $fonction->id,
+                            'service_id'      => $service->id,
+                            'direction_id'    => $direction->id,
+                            'cin'             => $cin,
+                            'adresse'         => $adresse,
+                        ]);
                     } else {
-                        if (!$dateEntree) {
-                            throw new \Exception("Date d'entrée invalide pour prorata");
+                        // 🔒 Mise à jour SANS toucher aux dates existantes
+                        $updates = [
+                            'nom'          => $nom,
+                            'prenom'       => $prenom,
+                            'fonction_id'  => $fonction->id,
+                            'service_id'   => $service->id,
+                            'direction_id' => $direction->id,
+                            'cin'          => $cin,
+                            'adresse'      => $adresse,
+                        ];
+
+                        if (!$personnel->date_entree && $dateEntreeExcel) {
+                            $updates['date_entree'] = $dateEntreeExcel;
+                        }
+
+                        if (!$personnel->date_naissance && $dateNaissanceExcel) {
+                            $updates['date_naissance'] = $dateNaissanceExcel;
+                        }
+
+                        $personnel->update($updates);
+                    }
+
+                    /* =====================================================
+                     * 4️⃣ CALCUL DU DROIT RH (RÈGLE FINALE)
+                     * ===================================================== */
+                    if ($cellDroit === 'X') {
+
+                        if (!$personnel->date_entree) {
+                            throw new \Exception("Date d'entrée requise pour prorata (X)");
                         }
 
                         $droit = $this->calculateProrataFromDate(
-                            Carbon::parse($dateEntree)
+                            Carbon::parse($personnel->date_entree)
+                        );
+
+                    } elseif (is_numeric($cellDroit)) {
+
+                        $droit = round((float) $cellDroit, 2);
+
+                    } else {
+                        throw new \Exception(
+                            "Valeur DROIT invalide (attendu : nombre ou 'X')"
                         );
                     }
 
-                    // ==============================
-                    // 5️⃣ Jours utilisés
-                    // ==============================
-                    $joursUtilises = round(
-                        $billet + $conge,
-                        2
-                    );
+                    /* =====================================================
+                     * 5️⃣ SOLDES
+                     * ===================================================== */
+                    $joursUtilises = round($billet + $conge, 2);
+                    $restant       = round($droit - $joursUtilises, 2);
 
-                    $restant = round($droit - $joursUtilises, 2);
-
-                    // ==============================
-                    // 6️⃣ LeaveBalance (INIT)
-                    // ==============================
+                    /* =====================================================
+                     * 6️⃣ LEAVEBALANCE LEGACY
+                     * ===================================================== */
                     LeaveBalance::updateOrCreate(
                         [
                             'personnel_id'    => $personnel->id,
-                            'annee_reference' => self::ANNEE_IMPORT, // 🔒 2025 figé
+                            'annee_reference' => self::ANNEE_IMPORT,
                         ],
                         [
-                            // 🔹 DROIT ANNUEL 2025
-                            'solde_annuel_jours'  => round($droit, 2),
-                            'solde_annuel_heures' => round($droit * 8, 2),
+                            'solde_annuel_jours'   => $droit,
+                            'solde_annuel_heures'  => round($droit * 8, 2),
 
-                            // 🔹 RESTE AU 31/12/2025
-                            'solde_global_jours'  => round($restant, 2),
-                            'solde_global_heures' => round($restant * 8, 2),
-                            'solde_global_restant'=> round($restant, 2),
+                            'solde_global_jours'   => $restant,
+                            'solde_global_heures'  => round($restant * 8, 2),
+                            'solde_global_restant' => $restant,
 
-                            // 🔹 TRACE IMPORT RH
-                            //'cloture_at' => Carbon::create(2025, 12, 31, 23, 59, 59),
                             'cloture_at' => null,
+
                             'soldes_par_type' => [
-                                'billet'       => $billet,
-                                'conge'        => $conge,
+                                'billet' => $billet,
+                                'conge'  => $conge,
                             ],
                         ]
                     );
 
+                    Log::info('Import RH OK', [
+                        'matricule' => $matricule,
+                        'droit' => $droit,
+                        'utilises' => $joursUtilises,
+                        'restant' => $restant,
+                    ]);
+
                     $importes++;
 
                 } catch (\Throwable $e) {
-
                     Log::error("Erreur import ligne {$index}", [
                         'error' => $e->getMessage(),
                         'ligne' => $row
@@ -186,9 +224,9 @@ class ImportLegacyDataController extends Controller
         ]);
     }
 
-    // ======================================================
-    // 🔢 PRORATA RH – 2,5 j / mois
-    // ======================================================
+    /* =====================================================
+     * 🔢 PRORATA RH – 2,5 jours / mois
+     * ===================================================== */
     private function calculateProrataFromDate(Carbon $dateEntree): float
     {
         $annee = self::ANNEE_IMPORT;
@@ -201,43 +239,34 @@ class ImportLegacyDataController extends Controller
             return 30;
         }
 
-        // Entrée pendant l'année 2025
         $months = 12 - $dateEntree->month + 1;
-
         return round($months * 2.5, 2);
     }
 
-
-    // ======================================================
-    // 📅 Conversion date Excel
-    // ======================================================
-    private function convertDate($value): ?string
+    /* =====================================================
+     * 📅 LECTURE DATE EXCEL SAFE (ANTI-BUG)
+     * ===================================================== */
+    private function getCellDateSafe($sheet, string $cell): ?string
     {
-        if (empty($value)) {
+        $excelCell = $sheet->getCell($cell);
+
+        if (!$excelCell || $excelCell->getValue() === null) {
             return null;
         }
 
-        if (is_numeric($value)) {
-            try {
-                return Carbon::instance(
-                    ExcelDate::excelToDateTimeObject($value)
-                )->format('Y-m-d');
-            } catch (\Throwable $e) {
-                return null;
-            }
+        $value = $excelCell->getValue();
+
+        if (ExcelDate::isDateTime($excelCell)) {
+            return Carbon::instance(
+                ExcelDate::excelToDateTimeObject($value)
+            )->format('Y-m-d');
         }
 
         if (is_string($value)) {
-            $value = trim($value);
-
             try {
-                return Carbon::createFromFormat('d/m/Y', $value)->format('Y-m-d');
+                return Carbon::createFromFormat('d/m/Y', trim($value))->format('Y-m-d');
             } catch (\Throwable $e) {
-                try {
-                    return Carbon::parse($value)->format('Y-m-d');
-                } catch (\Throwable $e) {
-                    return null;
-                }
+                return null;
             }
         }
 

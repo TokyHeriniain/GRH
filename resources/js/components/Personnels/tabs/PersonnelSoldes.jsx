@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { Card, Table, Badge, Spinner, Alert } from "react-bootstrap";
+import { Card, Table, Badge, Spinner, Alert, OverlayTrigger, Tooltip } from "react-bootstrap";
 
-export default function PersonnelSoldes({ personnelId }) {
+export default function PersonnelSoldes({ personnelId, annee }) {
   const [soldes, setSoldes] = useState([]);
   const [personnel, setPersonnel] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const formatDays = (val) => Number(val).toFixed(2);
 
   useEffect(() => {
     if (!personnelId) return;
@@ -14,30 +16,36 @@ export default function PersonnelSoldes({ personnelId }) {
     setLoading(true);
     setError(null);
 
+    const source = axios.CancelToken.source();
+
     axios
-      .get(`/api/personnels/${personnelId}/soldes`)
+      .get(`/api/personnels/${personnelId}/soldes${annee ? `?annee=${annee}` : ""}`, {
+        cancelToken: source.token,
+      })
       .then((res) => {
         setSoldes(res.data.soldes || []);
         setPersonnel(res.data.personnel || null);
       })
-      .catch(() => {
-        setError("Impossible de charger les soldes de congés.");
+      .catch((err) => {
+        if (!axios.isCancel(err)) {
+          setError("Impossible de charger les soldes de congés.");
+        }
       })
       .finally(() => setLoading(false));
-  }, [personnelId]);
 
-  if (loading) {
-    return <Spinner animation="border" />;
-  }
+    return () => {
+      source.cancel("Opération annulée : personnel changé");
+    };
+  }, [personnelId, annee]);
 
-  if (error) {
-    return <Alert variant="danger">{error}</Alert>;
-  }
+  if (loading) return <Spinner animation="border" />;
+
+  if (error) return <Alert variant="danger">{error}</Alert>;
 
   return (
     <Card className="shadow-sm mt-3">
       <Card.Header>
-        <strong>Soldes de congés</strong>
+        <strong>Soldes de congés {annee ? `(${annee})` : ""}</strong>
         {personnel && (
           <div className="text-muted mt-1">
             {personnel.matricule} — {personnel.nom} {personnel.prenom}
@@ -58,36 +66,56 @@ export default function PersonnelSoldes({ personnelId }) {
           <tbody>
             {soldes.length === 0 && (
               <tr>
-                <td colSpan="4" className="text-center text-muted">
+                <td colSpan={4} className="text-center text-muted">
                   Aucun solde disponible
                 </td>
               </tr>
             )}
 
-            {soldes.map((s) => (
-              <tr key={s.leave_type_id}>
-                <td>
-                  {s.leave_type}{" "}
-                  {s.est_exceptionnel && (
-                    <Badge bg="warning" text="dark" className="ms-1">
-                      Exceptionnel
+            {soldes.map((s) => {
+              // Couleur du badge selon solde
+              const badgeBg =
+                s.solde_restant > 0 ? "success" : s.solde_restant === 0 ? "warning" : "danger";
+
+              return (
+                <tr key={s.leave_type_id}>
+                  <td>
+                    {s.leave_type}
+                    {/* Badge pour congé exceptionnel */}
+                    {s.est_exceptionnel && (
+                      <OverlayTrigger
+                        placement="top"
+                        overlay={<Tooltip>Congé exceptionnel</Tooltip>}
+                      >
+                        <Badge bg="warning" text="dark" className="ms-1">
+                          !
+                        </Badge>
+                      </OverlayTrigger>
+                    )}
+                    {/* Badge limite pour Billet/Permission */}
+                    {s.limite_jours > 0 && (
+                      <OverlayTrigger
+                        placement="top"
+                        overlay={<Tooltip>Limite {s.limite_jours} j</Tooltip>}
+                      >
+                        <Badge bg="info" className="ms-1">
+                          {s.limite_jours} j
+                        </Badge>
+                      </OverlayTrigger>
+                    )}
+                  </td>
+
+                  <td>{formatDays(s.droit_total)} j</td>
+                  <td>{formatDays(s.jours_utilises)} j</td>
+                  <td>
+                    <Badge bg={badgeBg}>
+                      {formatDays(s.solde_restant)}
+                      {s.limite_jours > 0 ? ` / ${s.limite_jours}` : ""} j
                     </Badge>
-                  )}
-                </td>
-
-                <td>{Number(s.droit_total).toFixed(2)} j</td>
-
-                <td>{Number(s.jours_utilises).toFixed(2)} j</td>
-
-                <td>
-                  <Badge
-                    bg={s.solde_restant >= 0 ? "success" : "danger"}
-                  >
-                    {Number(s.solde_restant).toFixed(2)} j
-                  </Badge>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </Table>
       </Card.Body>

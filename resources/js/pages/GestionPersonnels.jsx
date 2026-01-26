@@ -1,5 +1,5 @@
 // resources/js/components/GestionPersonnelsModern.jsx
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import {
   Row,
   Col,
@@ -14,8 +14,7 @@ import {
   Image,
   ProgressBar,
   Pagination,
-  Overlay,
-  Tooltip,
+  Dropdown
 } from "react-bootstrap";
 import { FaSearch, FaSyncAlt, FaFileExport, FaPlus, FaEdit, FaTrash } from "react-icons/fa";
 import axios from "../axios";
@@ -23,6 +22,7 @@ import Select from "react-select";
 import { toast, ToastContainer } from "react-toastify";
 import ImportLegacyData from "./ImportLegacyData";
 import NavigationLayout from "../components/NavigationLayout";
+import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from "xlsx";
 import "react-toastify/dist/ReactToastify.css";
 import { useNavigate } from "react-router-dom";
@@ -72,6 +72,8 @@ export default function GestionPersonnelsModern() {
 
   // selection / batch
   const [selectedIds, setSelectedIds] = useState([]);
+  const { user } = useAuth();
+  const isAdmin = user?.role_id === 1;
 
   // modal form
   const [showModal, setShowModal] = useState(false);
@@ -108,6 +110,9 @@ export default function GestionPersonnelsModern() {
   const toastError = (m) => toast.error(m);
   const toastSuccess = (m) => toast.success(m);
 
+  const [total, setTotal] = useState(0);
+
+
   /* ---------- fetch structures ---------- */
   const fetchStructures = useCallback(async () => {
     try {
@@ -127,28 +132,36 @@ export default function GestionPersonnelsModern() {
 
   /* ---------- fetch personnels (server-side pagination + search) ---------- */
   const fetchPersonnels = useCallback(
-    async (page = 1) => {
-      setLoading(true);
-      try {
-        const params = { page, per_page: perPage };
-        if (debouncedQ) params.q = debouncedQ;
-        if (filterDirection) params.direction_id = filterDirection.value;
-        if (filterService) params.service_id = filterService.value;
-        const res = await axios.get("/api/personnels", { params });
-        // backend shape: { data: [...], last_page, current_page }
-        const payload = res.data;
-        setPersonnels(payload.data || payload); // tolerate different shapes
-        setTotalPages(payload.last_page || 1);
-        setCurrentPage(payload.current_page || page);
-      } catch (e) {
-        console.error(e);
-        toastError("Erreur récupération personnels");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [debouncedQ, filterDirection, filterService, perPage]
-  );
+  async (page = 1) => {
+    setLoading(true);
+    try {
+      const params = {
+        page,
+        per_page: perPage,
+        q: debouncedQ || undefined,
+        direction_id: filterDirection?.value,
+        service_id: filterService?.value,
+      };
+
+      const res = await axios.get("/api/personnels", { params });
+
+      const payload = res.data;
+      setPersonnels(payload.data || []);
+      setTotal(payload.total ?? payload.data?.length ?? 0);
+      setTotalPages(payload.last_page ?? 1);
+      setCurrentPage(payload.current_page ?? page);
+
+
+    } catch (e) {
+      console.error(e);
+      toastError("Erreur récupération personnels");
+    } finally {
+      setLoading(false);
+    }
+  },
+  [debouncedQ, filterDirection, filterService, perPage]
+);
+
 
   useEffect(() => {
     fetchStructures();
@@ -161,9 +174,12 @@ export default function GestionPersonnelsModern() {
   }, [q]);
 
   // reload when filters/pagination change
+  // 🔥 relance automatique de la recherche quand debouncedQ change
+  // 🔥 effet central : recherche instantanée réelle
   useEffect(() => {
-    fetchPersonnels(currentPage);
-  }, [fetchPersonnels, currentPage]);
+    fetchPersonnels(1);
+  }, [debouncedQ, filterDirection, filterService]);
+
 
   /* ---------- sorting client-side ---------- */
   const sortedPersonnels = useMemo(() => {
@@ -210,19 +226,59 @@ export default function GestionPersonnelsModern() {
   };
   const exportExcel = async (all = false) => {
     try {
-      if (all) {
-        const res = await axios.get("/api/personnels", { params: { page: 1, per_page: 10000 } });
-        const rows = (res.data.data || res.data).map(mapForExport);
-        downloadXLS(rows, "personnels_all.xlsx");
+      const baseParams = {
+        q: debouncedQ || undefined,
+        direction_id: filterDirection?.value,
+        service_id: filterService?.value,
+        per_page: perPage,
+      };
+
+      let allRows = [];
+
+      if (!all) {
+        // 👉 export page courante (logique RH)
+        const res = await axios.get("/api/personnels", {
+          params: {
+            ...baseParams,
+            page: currentPage,
+          },
+        });
+
+        allRows = (res.data.data || []).map(mapForExport);
       } else {
-        const rows = (personnels || []).map(mapForExport);
-        downloadXLS(rows, `personnels_page_${currentPage}.xlsx`);
+        // 👉 export TOTAL (toutes les pages)
+        let page = 1;
+        let lastPage = 1;
+
+        do {
+          const res = await axios.get("/api/personnels", {
+            params: {
+              ...baseParams,
+              page,
+            },
+          });
+
+          const payload = res.data;
+          lastPage = payload.last_page || 1;
+
+          const rows = (payload.data || []).map(mapForExport);
+          allRows = allRows.concat(rows);
+
+          page++;
+        } while (page <= lastPage);
       }
+
+      downloadXLS(
+        allRows,
+        all ? "personnels_tous_filtres.xlsx" : `personnels_page_${currentPage}.xlsx`
+      );
+
     } catch (e) {
       console.error(e);
       toastError("Erreur export");
     }
   };
+
 
   /* ---------- import callbacks (used by child import components) ---------- */
   const onImportStart = () => {
@@ -260,14 +316,19 @@ export default function GestionPersonnelsModern() {
     setPhotoPreview(null);
     setShowModal(true);
   };
+  const toDateInput = (value) => {
+    if (!value) return "";
+    return value.slice(0, 10); // YYYY-MM-DD
+  };
+
   const openEdit = (p) => {
     setEditing(p.id);
     setForm({
       nom: p.nom || "",
       prenom: p.prenom || "",
       matricule: p.matricule || "",
-      date_naissance: p.date_naissance || "",
-      date_entree: p.date_entree || "",
+      date_naissance: toDateInput(p.date_naissance),
+      date_entree: toDateInput(p.date_entree),
       adresse: p.adresse || "",
       cin: p.cin || "",
       diplome: p.diplome || "",
@@ -285,7 +346,7 @@ export default function GestionPersonnelsModern() {
     if (file) setPhotoPreview(URL.createObjectURL(file));
     else setPhotoPreview(null);
   };
-
+  
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -353,6 +414,33 @@ export default function GestionPersonnelsModern() {
   /* ---------- small UI helpers ---------- */
   const getSortArrow = (k) => (sortConfig.key === k ? (sortConfig.direction === "asc" ? " ▲" : " ▼") : "");
 
+  const selectAllRef = useRef(null);
+
+  useEffect(() => {
+    if (!selectAllRef.current) return;
+    selectAllRef.current.indeterminate =
+      selectedIds.length > 0 &&
+      selectedIds.length < sortedPersonnels.length;
+  }, [selectedIds, sortedPersonnels.length]);
+
+  const CompactBadge = ({ bg, text, maxWidth = 120 }) => (
+    <Badge
+      bg={bg}
+      pill
+      title={text}
+      style={{
+        maxWidth,
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        fontSize: "0.75rem",
+        padding: "0.35em 0.6em",
+      }}
+    >
+      {text}
+    </Badge>
+  );
+
   /* ---------- render ---------- */
   return (
     <NavigationLayout>
@@ -370,10 +458,20 @@ export default function GestionPersonnelsModern() {
             </div>
 
             <div className="d-flex align-items-center gap-2">
-              <Button variant="outline-secondary" size="sm" onClick={() => { setQ(""); setFilterDirection(null); setFilterService(null); fetchPersonnels(1); }}>
+              <Button
+                variant="outline-secondary"
+                size="sm"
+                onClick={() => {
+                  setQ("");
+                  setDebouncedQ("");
+                  setFilterDirection(null);
+                  setFilterService(null);
+                  setCurrentPage(1);
+                  fetchPersonnels(1);
+                }}
+              >
                 <FaSyncAlt /> Rafraîchir
               </Button>
-
               <Button variant={darkMode ? "light" : "dark"} size="sm" onClick={() => setDarkMode((s) => !s)}>
                 {darkMode ? "🌙 Sombre" : "🌞 Clair"}
               </Button>
@@ -389,10 +487,12 @@ export default function GestionPersonnelsModern() {
                 <Col md={6}>
                   <InputGroup>
                     <InputGroup.Text><FaSearch /></InputGroup.Text>
-                    <Form.Control placeholder="Rechercher nom / matricule..." value={q} onChange={(e) => { setQ(e.target.value); setCurrentPage(1); }} />
-                    <Button variant="outline-primary" onClick={() => fetchPersonnels(1)}>Rechercher</Button>
+                    <Form.Control
+                      placeholder="Rechercher nom / matricule..."
+                      value={q}
+                      onChange={(e) => setQ(e.target.value)}
+                    />
                   </InputGroup>
-                  <small className="text-muted">Recherche (recherche côté serveur après pause)</small>
                 </Col>
 
                 <Col md={3}>
@@ -416,7 +516,12 @@ export default function GestionPersonnelsModern() {
 
               <div className="d-flex gap-2 align-items-center">                
                 <div className="d-flex gap-1">
-                  <ImportLegacyData onImportStart={onImportStart} onImportProgress={onImportProgress} onImportFinish={onImportFinish} />
+                  <ImportLegacyData 
+                  disabled={!isAdmin}
+                  onImportStart={onImportStart} 
+                  onImportProgress={onImportProgress} 
+                  onImportFinish={onImportFinish}                   
+                  />
                 </div>
               </div>
             </Card>
@@ -435,92 +540,206 @@ export default function GestionPersonnelsModern() {
         {/* Table + batch actions */}
         <Card className="mb-3">
           <Card.Body className="p-0">
+
+            {/* Toolbar */}
             <div className="table-toolbar d-flex align-items-center justify-content-between p-2 border-bottom">
               <div>
-                <Button variant="danger" size="sm" disabled={selectedIds.length === 0} onClick={handleDeleteSelected}>Supprimer la sélection ({selectedIds.length})</Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  disabled={selectedIds.length === 0}
+                  onClick={handleDeleteSelected}
+                >
+                  Supprimer la sélection ({selectedIds.length})
+                </Button>
               </div>
-              <div className="text-muted">Résultats : <strong>{(personnels || []).length}</strong></div>
+
+              {/* ⚠️ total doit venir du backend (payload.total) */}
+              <div className="text-muted">
+                Affichage {personnels.length} sur <strong>{total}</strong>
+              </div>
             </div>
 
             <div className="table-responsive">
-              <Table hover bordered className="mb-0">
+              <Table hover bordered className="mb-0 align-middle">
                 <thead className="table-light">
                   <tr>
                     <th style={{ width: 40 }}>
-                      <input type="checkbox" onChange={toggleSelectAll} checked={selectedIds.length > 0 && selectedIds.length === sortedPersonnels.length && sortedPersonnels.length > 0} />
+                      <input
+                        ref={selectAllRef}
+                        type="checkbox"
+                        aria-label="Sélectionner tous les personnels"
+                        checked={
+                          sortedPersonnels.length > 0 &&
+                          selectedIds.length === sortedPersonnels.length
+                        }
+                        onChange={toggleSelectAll}
+                      />
                     </th>
-                    <th style={{ cursor: "pointer" }} onClick={() => requestSort("nom")}>Nom {getSortArrow("nom")}</th>
-                    <th style={{ cursor: "pointer" }} onClick={() => requestSort("prenom")}>Prénom {getSortArrow("prenom")}</th>
-                    <th style={{ cursor: "pointer" }} onClick={() => requestSort("matricule")}>Matricule {getSortArrow("matricule")}</th>
-                    <th>Direction</th>
-                    <th>Service</th>
-                    <th>Fonction</th>
-                    <th style={{ width: 180 }}>Actions</th>
+
+                    <th style={{ width: 200, cursor: "pointer" }} onClick={() => requestSort("nom")}>
+                      Nom {getSortArrow("nom")}
+                    </th>
+
+                    <th style={{ width: 160, cursor: "pointer" }} onClick={() => requestSort("prenom")}>
+                      Prénom {getSortArrow("prenom")}
+                    </th>
+
+                    <th style={{ width: 160 }}>Direction</th>
+                    <th style={{ width: 160 }}>Service</th>
+                    <th style={{ width: 180 }}>Fonction</th>
+                    <th style={{ width: 140 }}>Actions</th>
                   </tr>
                 </thead>
 
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={8} className="text-center py-5"><Spinner animation="border" /></td></tr>
-                  ) : sortedPersonnels.length === 0 ? (
-                    <tr><td colSpan={8} className="text-center py-4 text-muted">Aucun personnel trouvé</td></tr>
-                  ) : sortedPersonnels.map((p) => (
-                    <tr key={p.id}>
-                      <td>
-                        <input type="checkbox" checked={selectedIds.includes(p.id)} onChange={() => toggleSelect(p.id)} />
-                      </td>
-
-                      <td>
-                        <div className="d-flex align-items-center gap-2">
-                          <Image src={p.photo_url || PLACEHOLDER_AVATAR} roundedCircle style={{ width: 44, height: 44, objectFit: "cover" }} />
-                          <div>
-                            <div className="fw-semibold">{p.nom}</div>
-                            <small className="text-muted">{p.matricule}</small>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td>{p.prenom}</td>
-                      <td>{p.matricule}</td>
-                      <td>{p.direction?.nom ? <Badge bg="primary">{p.direction.nom}</Badge> : "-"}</td>
-                      <td>{p.service?.nom ? <Badge bg="info">{p.service.nom}</Badge> : "-"}</td>
-                      <td>{p.fonction?.nom ? <Badge bg="secondary">{p.fonction.nom}</Badge> : "-"}</td>
-
-                      <td>
-                        <div className="d-flex gap-1">
-                          <Button size="sm" variant="outline-primary" onClick={() => openEdit(p)}><FaEdit /></Button>
-                          <Button size="sm" variant="outline-danger" onClick={() => handleDelete(p.id)}><FaTrash /></Button>
-                          <Button
-                            size="sm"
-                            variant="outline-secondary"
-                            onClick={() => navigate(`/personnels/${p.id}`)}
-                          >
-                            👤 Dossier RH
-                          </Button>
-                        </div>
+                    <tr>
+                      <td colSpan={7} className="text-center py-5">
+                        <Spinner animation="border" />
                       </td>
                     </tr>
-                  ))}
+                  ) : sortedPersonnels.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-4 text-muted">
+                        Aucun personnel trouvé
+                      </td>
+                    </tr>
+                  ) : (
+                    sortedPersonnels.map((p) => (
+                      <tr key={p.id}>
+                        <td>
+                          <input
+                            type="checkbox"
+                            aria-label={`Sélectionner ${p.nom}`}
+                            checked={selectedIds.includes(p.id)}
+                            onChange={() => toggleSelect(p.id)}
+                          />
+                        </td>
+
+                        {/* Nom + avatar + matricule */}
+                        <td>
+                          <div className="d-flex align-items-center gap-2">
+                            <Image
+                              src={p.photo_url || PLACEHOLDER_AVATAR}
+                              roundedCircle
+                              style={{ width: 44, height: 44, objectFit: "cover" }}
+                            />
+                            <div>
+                              <div className="fw-semibold">{p.nom}</div>
+                              <small className="text-muted">{p.matricule}</small>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td>{p.prenom}</td>
+
+                        <td>
+                          {p.direction?.nom
+                            ? <CompactBadge bg="primary" text={p.direction.nom} />
+                            : "-"}
+                        </td>
+
+                        <td>
+                          {p.service?.nom
+                            ? <CompactBadge bg="info" text={p.service.nom} />
+                            : "-"}
+                        </td>
+
+                        <td>
+                          {p.fonction?.nom
+                            ? <CompactBadge bg="secondary" text={p.fonction.nom} />
+                            : "-"}
+                        </td>
+
+
+                        {/* Actions compactes */}
+                        <td>
+                          <Dropdown>
+                            <Dropdown.Toggle size="sm" variant="outline-secondary">
+                              Actions
+                            </Dropdown.Toggle>
+
+                            <Dropdown.Menu>
+                              <Dropdown.Item onClick={() => openEdit(p)}>
+                                <FaEdit className="me-2" />
+                                Modifier
+                              </Dropdown.Item>
+
+                              <Dropdown.Item onClick={() => navigate(`/personnels/${p.id}`)}>
+                                👤 Dossier RH
+                              </Dropdown.Item>
+
+                              <Dropdown.Divider />
+
+                              <Dropdown.Item
+                                className="text-danger"
+                                onClick={() => handleDelete(p.id)}
+                              >
+                                <FaTrash className="me-2" />
+                                Supprimer
+                              </Dropdown.Item>
+                            </Dropdown.Menu>
+                          </Dropdown>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </Table>
             </div>
           </Card.Body>
         </Card>
 
+
         {/* Pagination */}
         <div className="d-flex justify-content-center mb-4">
           <Pagination>
-            <Pagination.First onClick={() => setCurrentPage(1)} disabled={currentPage === 1} />
-            <Pagination.Prev onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} />
+            <Pagination.First
+              onClick={() => fetchPersonnels(1)}
+              disabled={currentPage === 1}
+            />
+
+            <Pagination.Prev
+              onClick={() => fetchPersonnels(currentPage - 1)}
+              disabled={currentPage === 1}
+            />
+
             {Array.from({ length: totalPages }).map((_, i) => {
               const n = i + 1;
-              if (totalPages > 10 && Math.abs(n - currentPage) > 4 && n !== 1 && n !== totalPages) return null;
-              return <Pagination.Item key={n} active={n === currentPage} onClick={() => setCurrentPage(n)}>{n}</Pagination.Item>;
+
+              if (
+                totalPages > 10 &&
+                Math.abs(n - currentPage) > 4 &&
+                n !== 1 &&
+                n !== totalPages
+              ) {
+                return null;
+              }
+
+              return (
+                <Pagination.Item
+                  key={n}
+                  active={n === currentPage}
+                  onClick={() => fetchPersonnels(n)}
+                >
+                  {n}
+                </Pagination.Item>
+              );
             })}
-            <Pagination.Next onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} />
-            <Pagination.Last onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} />
+
+            <Pagination.Next
+              onClick={() => fetchPersonnels(currentPage + 1)}
+              disabled={currentPage === totalPages}
+            />
+
+            <Pagination.Last
+              onClick={() => fetchPersonnels(totalPages)}
+              disabled={currentPage === totalPages}
+            />
           </Pagination>
         </div>
+
 
         {/* Modal add/edit */}
         <Modal show={showModal} onHide={() => setShowModal(false)} size="lg" centered>
