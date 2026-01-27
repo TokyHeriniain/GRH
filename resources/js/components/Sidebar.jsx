@@ -258,12 +258,6 @@ const Sidebar = () => {
                   <NavLink to="/rh/conges" className="nav-link text-white">
                     • Gestion des congés
                   </NavLink>
-                  <NavLink to="/rh/cloture-annuelle" className="nav-link text-white">
-                    • Cloture Annuelle 
-                  </NavLink>
-                  <NavLink to="/rh/journalRH" className="nav-link text-white">
-                    • Journal RH 
-                  </NavLink>
                 </div>
               </li>
               <li>

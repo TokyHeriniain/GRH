@@ -146,7 +146,6 @@ class LeaveController extends Controller
         return $request->preview
             ? $pdf->stream('apercu_historique_conges.pdf')
             : $pdf->download('historique_conges_' . now()->format('Ymd_His') . '.pdf');
-    }
-
+    }    
 
 }

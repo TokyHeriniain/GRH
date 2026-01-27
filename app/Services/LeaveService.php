@@ -125,13 +125,15 @@ class LeaveService
             $soldeAvant = 0;
             $soldeApres = 0;
 
-            // ================= CONGÉ EXCEPTIONNEL =================
+            /* ================= CONGÉ EXCEPTIONNEL ================= */
             if ($type->est_exceptionnel) {
                 $dejaPris = $this->balances
                     ->getUsedExceptionalDays($leave->personnel_id, $type->id);
 
-                if ($type->limite_jours !== null &&
-                    ($dejaPris + $leave->jours_utilises) > $type->limite_jours) {
+                if (
+                    $type->limite_jours !== null &&
+                    ($dejaPris + $leave->jours_utilises) > $type->limite_jours
+                ) {
                     throw new LogicException("Quota exceptionnel dépassé");
                 }
 
@@ -140,7 +142,7 @@ class LeaveService
                 $soldeApres = $soldeAvant - $leave->jours_utilises;
             }
 
-            // ================= CONGÉ AVEC SOLDE =================
+            /* ================= CONGÉ AVEC SOLDE ================= */
             if ($type->avec_solde && !$type->est_exceptionnel) {
                 $balance = LeaveBalance::where('personnel_id', $leave->personnel_id)
                     ->where('annee_reference', $annee)
@@ -181,7 +183,11 @@ class LeaveService
     }
 
     /* =========================================================
-     | CALCUL CENTRALISÉ (CORRECT)
+     | CALCUL CENTRALISÉ – VERSION RH CORRECTE
+     | - Week-ends inclus
+     | - Jours fériés exclus selon règle
+     | - Multi-jours = 8h par jour
+     | - Heures utilisées uniquement si 1 seul jour
      ========================================================= */
     protected function calculateDays(
         string $dateDebut,
@@ -204,43 +210,22 @@ class LeaveService
             : [];
 
         $totalHours = 0;
-
         $period = CarbonPeriod::create($startDate, $endDate);
 
         foreach ($period as $date) {
 
-            // ⛔ Jour férié
+            // ⛔ Jour férié exclu
             if ($excludeHolidays && in_array($date->toDateString(), $holidays)) {
                 continue;
             }
 
-            // =====================
-            // PREMIER JOUR
-            // =====================
-            if ($date->isSameDay($startDate) && $date->isSameDay($endDate)) {
+            // 🔹 Congé sur une seule journée → calcul horaire
+            if ($startDate->isSameDay($endDate)) {
                 $dayStart = Carbon::parse("$dateDebut $heureDebut");
                 $dayEnd   = Carbon::parse("$dateFin $heureFin");
                 $hours = $this->calculateWorkedHours($dayStart, $dayEnd);
             }
-
-            elseif ($date->isSameDay($startDate)) {
-                $dayStart = Carbon::parse("$dateDebut $heureDebut");
-                $dayEnd   = Carbon::parse("$dateDebut 17:30");
-                $hours = $this->calculateWorkedHours($dayStart, $dayEnd);
-            }
-
-            // =====================
-            // DERNIER JOUR
-            // =====================
-            elseif ($date->isSameDay($endDate)) {
-                $dayStart = Carbon::parse("$dateFin 08:00");
-                $dayEnd   = Carbon::parse("$dateFin $heureFin");
-                $hours = $this->calculateWorkedHours($dayStart, $dayEnd);
-            }
-
-            // =====================
-            // JOUR COMPLET
-            // =====================
+            // 🔹 Congé multi-jours → TOUS les jours = 8h
             else {
                 $hours = 8;
             }
@@ -251,6 +236,9 @@ class LeaveService
         return round($totalHours / 8, 2);
     }
 
+    /* =========================================================
+     | CALCUL HEURES TRAVAILLÉES (1 JOUR)
+     ========================================================= */
     protected function calculateWorkedHours(Carbon $start, Carbon $end): float
     {
         if ($end <= $start) return 0;
@@ -269,6 +257,4 @@ class LeaveService
 
         return max($minutes / 60, 0);
     }
-
-
 }

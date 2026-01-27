@@ -20,57 +20,42 @@ export default function CongeForm({
 
   const [selectedPersonnel, setSelectedPersonnel] = useState(null);
   const [selectedLeaveType, setSelectedLeaveType] = useState(null);
+  
 
   /* ================= CALCUL DES JOURS ================= */
   const calculateJours = (dateDebut, dateFin, heureDebut, heureFin) => {
     if (!dateDebut || !dateFin || !heureDebut || !heureFin) return 0;
 
-    const start = new Date(`${dateDebut}T${heureDebut}`);
-    const end = new Date(`${dateFin}T${heureFin}`);
-    if (end <= start) return 0;
+    const startDate = new Date(dateDebut);
+    const endDate = new Date(dateFin);
 
-    const pauseStart = new Date(`${dateDebut}T12:00`);
-    const pauseEnd = new Date(`${dateDebut}T13:30`);
-    let totalHours = 0;
+    if (endDate < startDate) return 0;
 
+    // 🔹 CAS 1 : CONGÉ SUR UNE SEULE JOURNÉE → calcul horaire
     if (dateDebut === dateFin) {
+      const start = new Date(`${dateDebut}T${heureDebut}`);
+      const end = new Date(`${dateFin}T${heureFin}`);
+      if (end <= start) return 0;
+
       let hours = (end - start) / 3600000;
+
+      // Pause déjeuner 12h00–13h30
+      const pauseStart = new Date(`${dateDebut}T12:00`);
+      const pauseEnd = new Date(`${dateDebut}T13:30`);
       if (start < pauseEnd && end > pauseStart) {
         hours -= (Math.min(end, pauseEnd) - Math.max(start, pauseStart)) / 3600000;
       }
-      totalHours = hours;
-    } else {
-      const firstDayEnd = new Date(`${dateDebut}T17:30`);
-      let firstDayHours = (firstDayEnd - start) / 3600000;
-      if (start < pauseEnd && firstDayEnd > pauseStart) {
-        firstDayHours -=
-          (Math.min(firstDayEnd, pauseEnd) -
-            Math.max(start, pauseStart)) /
-          3600000;
-      }
 
-      const lastDayStart = new Date(`${dateFin}T08:00`);
-      const pauseStartFin = new Date(`${dateFin}T12:00`);
-      const pauseEndFin = new Date(`${dateFin}T13:30`);
-      let lastDayHours = (end - lastDayStart) / 3600000;
-      if (lastDayStart < pauseEndFin && end > pauseStartFin) {
-        lastDayHours -=
-          (Math.min(end, pauseEndFin) -
-            Math.max(lastDayStart, pauseStartFin)) /
-          3600000;
-      }
-
-      const intermediaryDays =
-        Math.max(
-          0,
-          (new Date(dateFin) - new Date(dateDebut)) / 86400000 - 1
-        ) * 8;
-
-      totalHours = firstDayHours + intermediaryDays + lastDayHours;
+      return Math.round((hours / 8) * 100) / 100;
     }
 
-    return Math.round((totalHours / 8) * 100) / 100;
+    // 🔹 CAS 2 : CONGÉ MULTI-JOURS → 1 JOUR = 1
+    const diffDays =
+      Math.floor((endDate - startDate) / 86400000) + 1;
+
+    return diffDays;
   };
+
 
   useEffect(() => {
     setJoursUtilises(
