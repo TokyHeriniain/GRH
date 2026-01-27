@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Models\Leave;
 use App\Models\LeaveBalance;
+use App\Models\LeaveType;
 use Carbon\Carbon;
+use Carbon\CarbonPeriod;
 use Illuminate\Support\Facades\DB;
 use LogicException;
 
@@ -13,11 +15,12 @@ class LeaveService
     public function __construct(
         protected LeaveBalanceService $balances,
         protected LeaveAuditService $audit,
-        protected AnnualLeaveClosureService $closure
+        protected AnnualLeaveClosureService $closure,
+        protected HolidayService $holidays
     ) {}
 
     /* =========================================================
-     | CREATE — anti-doublon strict
+     | CREATE
      ========================================================= */
     public function create(array $data): Leave
     {
@@ -37,9 +40,19 @@ class LeaveService
             throw new LogicException("Un congé identique existe déjà pour cette période");
         }
 
+        $type = LeaveType::findOrFail($data['leave_type_id']);
+
+        $jours = $this->calculateDays(
+            $data['date_debut'],
+            $data['date_fin'],
+            $data['heure_debut'],
+            $data['heure_fin'],
+            $type
+        );
+
         $leave = Leave::create([
             ...$data,
-            'jours_utilises' => round($data['jours_utilises'], 2),
+            'jours_utilises' => $jours,
             'status' => 'en_attente',
         ]);
 
@@ -55,13 +68,30 @@ class LeaveService
     }
 
     /* =========================================================
-     | UPDATE — modification avant validation RH
+     | UPDATE
      ========================================================= */
     public function update(Leave $leave, array $data): Leave
     {
         $this->closure->isClosed(Carbon::parse($leave->date_debut)->year);
 
         $old = $leave->getOriginal();
+
+        if (
+            isset($data['date_debut'], $data['date_fin'], $data['heure_debut'], $data['heure_fin'])
+        ) {
+            $type = LeaveType::findOrFail(
+                $data['leave_type_id'] ?? $leave->leave_type_id
+            );
+
+            $data['jours_utilises'] = $this->calculateDays(
+                $data['date_debut'],
+                $data['date_fin'],
+                $data['heure_debut'],
+                $data['heure_fin'],
+                $type
+            );
+        }
+
         $leave->update($data);
 
         $this->audit->log(
@@ -72,25 +102,7 @@ class LeaveService
             $leave->fresh()->toArray()
         );
 
-        return $leave;
-    }
-
-    /* =========================================================
-     | DELETE
-     ========================================================= */
-    public function delete(Leave $leave): void
-    {
-        $this->closure->isClosed(Carbon::parse($leave->date_debut)->year);
-
-        $this->audit->log(
-            'delete_leave',
-            $leave->personnel_id,
-            $leave->id,
-            $leave->toArray(),
-            []
-        );
-
-        $leave->delete();
+        return $leave->fresh();
     }
 
     /* =========================================================
@@ -99,6 +111,7 @@ class LeaveService
     public function validateRH(Leave $leave, int $userId): Leave
     {
         return DB::transaction(function () use ($leave, $userId) {
+
             $annee = Carbon::parse($leave->date_debut)->year;
             $this->closure->isClosed($annee);
 
@@ -112,9 +125,10 @@ class LeaveService
             $soldeAvant = 0;
             $soldeApres = 0;
 
-            /* ================= CONGÉ EXCEPTIONNEL ================= */
+            // ================= CONGÉ EXCEPTIONNEL =================
             if ($type->est_exceptionnel) {
-                $dejaPris = $this->balances->getUsedExceptionalDays($leave->personnel_id, $type->id);
+                $dejaPris = $this->balances
+                    ->getUsedExceptionalDays($leave->personnel_id, $type->id);
 
                 if ($type->limite_jours !== null &&
                     ($dejaPris + $leave->jours_utilises) > $type->limite_jours) {
@@ -126,7 +140,7 @@ class LeaveService
                 $soldeApres = $soldeAvant - $leave->jours_utilises;
             }
 
-            /* ================= CONGÉ AVEC SOLDE ================= */
+            // ================= CONGÉ AVEC SOLDE =================
             if ($type->avec_solde && !$type->est_exceptionnel) {
                 $balance = LeaveBalance::where('personnel_id', $leave->personnel_id)
                     ->where('annee_reference', $annee)
@@ -136,9 +150,8 @@ class LeaveService
                 $soldeAvant = $balance->solde_annuel_jours;
                 $soldeApres = $soldeAvant - $leave->jours_utilises;
 
-                // ❌ solde négatif interdit SAUF si type autorisé
                 if ($soldeApres < 0 && !$type->autorise_solde_negatif) {
-                    throw new LogicException("Solde insuffisant pour ce type de congé");
+                    throw new LogicException("Solde insuffisant");
                 }
             }
 
@@ -150,44 +163,112 @@ class LeaveService
                 'solde_restant' => round($soldeApres, 2),
             ]);
 
-            // 🔁 Recalcul global
-            $this->balances->recalculateForPersonnelAndType($leave->personnel_id, $annee);
+            $this->balances->recalculateForPersonnelAndType(
+                $leave->personnel_id,
+                $annee
+            );
 
-            $this->audit->log('validate_rh', $leave->personnel_id, $leave->id, [], $leave->toArray());
+            $this->audit->log(
+                'validate_rh',
+                $leave->personnel_id,
+                $leave->id,
+                [],
+                $leave->toArray()
+            );
 
             return $leave->fresh();
         });
     }
 
     /* =========================================================
-     | REJET RH
+     | CALCUL CENTRALISÉ (CORRECT)
      ========================================================= */
-    public function rejectRH(Leave $leave, int $userId, ?string $reason): Leave
-    {
-        return DB::transaction(function () use ($leave, $userId, $reason) {
-            $annee = Carbon::parse($leave->date_debut)->year;
-            $this->closure->isClosed($annee);
+    protected function calculateDays(
+        string $dateDebut,
+        string $dateFin,
+        string $heureDebut,
+        string $heureFin,
+        LeaveType $type
+    ): float {
 
-            if ($leave->status !== 'approuve_rh') {
-                throw new LogicException("Seul un congé validé RH peut être rejeté");
+        $startDate = Carbon::parse($dateDebut);
+        $endDate   = Carbon::parse($dateFin);
+
+        if ($endDate->lessThan($startDate)) {
+            throw new LogicException("Période invalide");
+        }
+
+        $excludeHolidays = $this->holidays->shouldExclude($type);
+        $holidays = $excludeHolidays
+            ? $this->holidays->datesBetween($dateDebut, $dateFin)
+            : [];
+
+        $totalHours = 0;
+
+        $period = CarbonPeriod::create($startDate, $endDate);
+
+        foreach ($period as $date) {
+
+            // ⛔ Jour férié
+            if ($excludeHolidays && in_array($date->toDateString(), $holidays)) {
+                continue;
             }
 
-            $old = $leave->getOriginal();
+            // =====================
+            // PREMIER JOUR
+            // =====================
+            if ($date->isSameDay($startDate) && $date->isSameDay($endDate)) {
+                $dayStart = Carbon::parse("$dateDebut $heureDebut");
+                $dayEnd   = Carbon::parse("$dateFin $heureFin");
+                $hours = $this->calculateWorkedHours($dayStart, $dayEnd);
+            }
 
-            $leave->forceFill([
-                'status' => 'rejete',
-                'rejection_reason' => $reason,
-                'validated_by' => $userId,
-                'validated_at' => null,
-                'droit_total' => null,
-                'solde_restant' => null,
-            ])->save();
+            elseif ($date->isSameDay($startDate)) {
+                $dayStart = Carbon::parse("$dateDebut $heureDebut");
+                $dayEnd   = Carbon::parse("$dateDebut 17:30");
+                $hours = $this->calculateWorkedHours($dayStart, $dayEnd);
+            }
 
-            $this->balances->recalculateForPersonnelAndType($leave->personnel_id, $annee);
+            // =====================
+            // DERNIER JOUR
+            // =====================
+            elseif ($date->isSameDay($endDate)) {
+                $dayStart = Carbon::parse("$dateFin 08:00");
+                $dayEnd   = Carbon::parse("$dateFin $heureFin");
+                $hours = $this->calculateWorkedHours($dayStart, $dayEnd);
+            }
 
-            $this->audit->log('reject_rh', $leave->personnel_id, $leave->id, $old, $leave->toArray());
+            // =====================
+            // JOUR COMPLET
+            // =====================
+            else {
+                $hours = 8;
+            }
 
-            return $leave->fresh();
-        });
+            $totalHours += max($hours, 0);
+        }
+
+        return round($totalHours / 8, 2);
     }
+
+    protected function calculateWorkedHours(Carbon $start, Carbon $end): float
+    {
+        if ($end <= $start) return 0;
+
+        $minutes = $end->diffInMinutes($start);
+
+        // Pause déjeuner 12h00–13h30
+        $pauseStart = $start->copy()->setTime(12, 0);
+        $pauseEnd   = $start->copy()->setTime(13, 30);
+
+        if ($start < $pauseEnd && $end > $pauseStart) {
+            $overlapStart = $start->greaterThan($pauseStart) ? $start : $pauseStart;
+            $overlapEnd   = $end->lessThan($pauseEnd) ? $end : $pauseEnd;
+            $minutes -= $overlapStart->diffInMinutes($overlapEnd);
+        }
+
+        return max($minutes / 60, 0);
+    }
+
+
 }

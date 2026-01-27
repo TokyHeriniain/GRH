@@ -17,6 +17,7 @@ import PersonnelShow from './components/Personnels/PersonnelShow';
 import ClotureAnnuelleRH from './pages/rh/ClotureAnnuelleRH';
 import DashboardRH from './pages/rh/DashboardRH';
 import JournalRH from './pages/rh/JournalRH';
+import HolidaysManagement from './pages/HolidaysManagement';
 
 const ProtectedRoute = ({ children, roles }) => {
     const { user } = useAuth();
@@ -95,6 +96,11 @@ const AppRoutes = () => {
                 <Route path="/structure" element={
                     <ProtectedRoute roles={['RH', 'Admin']}>
                         <StructureManagement />
+                    </ProtectedRoute>
+                } />
+                <Route path="/gestion-jours-feries" element={
+                    <ProtectedRoute roles={['RH', 'Admin']}>
+                        <HolidaysManagement />
                     </ProtectedRoute>
                 } />
 

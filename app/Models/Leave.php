@@ -4,6 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Models\Personnel;
+use App\Models\LeaveType;
+use App\Models\holiday;
 
 class Leave extends Model
 {
@@ -101,6 +104,18 @@ class Leave extends Model
                 }
             }
         });
+    }
+
+    public function impactedHolidays(): array
+    {
+        if (!$this->leaveType || !$this->leaveType->exclut_jours_feries) {
+            return [];
+        }
+
+        return Holiday::whereBetween('date', [
+            $this->date_debut,
+            $this->date_fin
+        ])->get(['title', 'date'])->toArray();
     }
 
 

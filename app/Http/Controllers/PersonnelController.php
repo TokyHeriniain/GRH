@@ -15,7 +15,7 @@ use App\Models\LeaveType;
 use Maatwebsite\Excel\Facades\Excel;
 use Barryvdh\DomPDF\Facade as PDF;
 use Carbon\Carbon;
-
+use App\Models\Holiday;
 class PersonnelController extends Controller
 {
     public function index(Request $request)
@@ -218,14 +218,16 @@ class PersonnelController extends Controller
         ]);
     }
 
-   public function show($id, Request $request)
+
+
+    public function show($id, Request $request)
     {
         $year = $request->query('year', now()->year);
 
         $personnel = Personnel::with(['direction', 'service', 'fonction', 'documents'])
             ->findOrFail($id);
 
-        // --- Solde global ---
+        // ================== SOLDE GLOBAL ==================
         $entree = Carbon::parse($personnel->date_entree);
         $moisTravailles = $entree->diffInMonths(now());
         $droitTotal = round($moisTravailles * 2.5, 2);
@@ -241,8 +243,9 @@ class PersonnelController extends Controller
 
         $soldeRestant = round($droitTotal - $congesPris, 2);
 
-        // --- Soldes par type ---
+        // ================== SOLDES PAR TYPE ==================
         $leaveTypes = LeaveType::all();
+
         $parType = $leaveTypes->map(function ($type) use ($id, $year) {
             $joursPrisType = Leave::where('personnel_id', $id)
                 ->where('leave_type_id', $type->id)
@@ -256,30 +259,75 @@ class PersonnelController extends Controller
             return [
                 'type' => $type->nom,
                 'droit_total' => $droit,
-                'jours_pris' => $joursPrisType,
-                'solde_restant' => $solde,
+                'jours_pris' => round($joursPrisType, 2),
+                'solde_restant' => $solde !== null ? round($solde, 2) : null,
             ];
         });
 
-        // --- Historique des congés ---
-        $historique = Leave::with('leaveType')
+        // ================== HISTORIQUE AVEC JOURS FÉRIÉS ==================
+        $historique = Leave::with(['leaveType', 'validatedBy'])
             ->where('personnel_id', $id)
             ->orderBy('date_debut', 'desc')
-            ->get();
+            ->get()
+            ->map(function ($leave) {
 
+                $impactedHolidays = [];
+
+                if (
+                    $leave->leaveType->avec_solde &&
+                    !$leave->leaveType->est_exceptionnel
+                ) {
+                    $impactedHolidays = Holiday::whereBetween(
+                        'date',
+                        [$leave->date_debut, $leave->date_fin]
+                    )
+                    ->get()
+                    ->map(fn ($h) => [
+                        'title' => $h->title,
+                        'date'  => Carbon::parse($h->date)->format('Y-m-d'),
+                    ])
+                    ->toArray();
+                }
+
+                return [
+                    'id' => $leave->id,
+
+                    // ✅ structure attendue par React
+                    'leave_type' => [
+                        'nom' => $leave->leaveType->nom,
+                    ],
+
+                    'date_debut' => $leave->date_debut,
+                    'date_fin' => $leave->date_fin,
+                    'heure_debut' => $leave->heure_debut,
+                    'heure_fin' => $leave->heure_fin,
+
+                    'jours_utilises' => round($leave->jours_utilises, 2),
+                    'status' => $leave->status,
+
+                    'created_at' => $leave->created_at,
+                    'updated_at' => $leave->updated_at,
+
+                    'validated_by' => $leave->validatedBy
+                        ? ['name' => $leave->validatedBy->name]
+                        : null,
+
+                    // ✅ NOM EXACT ATTENDU PAR REACT
+                    'impacted_holidays' => $impactedHolidays,
+                ];
+            });
         return response()->json([
             'personnel' => $personnel,
-            'conges' => [
-                'global' => [
-                    'droit_total' => $droitTotal,
-                    'jours_pris' => $congesPris,
-                    'solde_restant' => $soldeRestant,
-                ],
-                'par_type' => $parType,
-                'historique' => $historique,
+            'solde_global' => [
+                'droit_total' => $droitTotal,           
+                'jours_pris' => round($congesPris, 2),
+                'solde_restant' => $soldeRestant,
             ],
+            'solde_par_type' => $parType,
+            'historique_conges' => $historique,
         ]);
     }
+
 
     public function exportPDF($id)
     {

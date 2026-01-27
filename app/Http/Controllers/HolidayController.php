@@ -1,42 +1,53 @@
 <?php
 
-// app/Http/Controllers/HolidayController.php
 namespace App\Http\Controllers;
 
 use App\Models\Holiday;
 use Illuminate\Http\Request;
+use Carbon\Carbon;
 
 class HolidayController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return Holiday::all();
+        $year = $request->input('annee');
+
+        $query = Holiday::query();
+
+        if ($year) {
+            $query->whereYear('date', $year);
+        }
+
+        return response()->json(
+            $query->orderBy('date')->get()
+        );
     }
 
     public function store(Request $request)
     {
-        $request->validate([
-            'title' => 'required|string',
-            'date' => 'required|date|unique:holidays,date',
+        $data = $request->validate([
+            'title' => 'required|string|max:255',
+            'date'  => 'required|date|unique:holidays,date',
         ]);
 
-        return Holiday::create($request->all());
+        return Holiday::create($data);
     }
 
     public function update(Request $request, Holiday $holiday)
     {
-        $request->validate([
-            'title' => 'required|string',
-            'date' => 'required|date|unique:holidays,date,' . $holiday->id,
+        $data = $request->validate([
+            'title' => 'required|string|max:255',
+            'date'  => 'required|date|unique:holidays,date,' . $holiday->id,
         ]);
 
-        $holiday->update($request->all());
+        $holiday->update($data);
+
         return $holiday;
     }
 
     public function destroy(Holiday $holiday)
     {
         $holiday->delete();
-        return response()->noContent();
+        return response()->json(['success' => true]);
     }
 }

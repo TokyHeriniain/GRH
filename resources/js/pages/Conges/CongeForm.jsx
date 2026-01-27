@@ -297,6 +297,10 @@ export default function CongeForm({
             <Form.Label>Jours utilisés</Form.Label>
             <Form.Control value={joursUtilises} disabled />
           </Col>
+          <small className="text-muted">
+            ⚠️ Les jours fériés sont automatiquement exclus après validation.
+          </small>
+
 
           <Col md={12} className="d-flex gap-2">
             <Button type="submit" className="w-100" disabled={locked}>

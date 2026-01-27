@@ -226,7 +226,7 @@ export default function HistoriqueConge({ reload }) {
                   <tr key={c.id}>
                     <td>{c.personnel?.matricule}</td>
                     <td>{c.personnel?.nom} {c.personnel?.prenom}</td>
-                    <td>{c.leaveType?.nom}</td>
+                    <td>{c.leave_type?.nom}</td>
                     <td>
                       {dayjs(c.date_debut).format("DD/MM/YYYY")} {c.heure_debut}
                       <br />

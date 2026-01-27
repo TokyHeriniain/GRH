@@ -3,7 +3,7 @@ import { Card, Row, Col, Image, Badge } from "react-bootstrap";
 export default function PersonnelInfos({ personnel }) {
   const formatDate = (dateStr) =>
     dateStr ? new Date(dateStr).toLocaleDateString("fr-FR") : "N/A";
-
+  const PLACEHOLDER_AVATAR = "/images/avatar-placeholder.png";
   if (!personnel) return null;
 
   return (
@@ -17,7 +17,7 @@ export default function PersonnelInfos({ personnel }) {
           {/* Photo */}
           <Col xs={12} md={3} className="text-center">
             <Image
-              src={personnel.photo || "/default-avatar.png"}
+              src={personnel.photo_url || PLACEHOLDER_AVATAR}
               roundedCircle
               fluid
               style={{ maxWidth: "130px" }}

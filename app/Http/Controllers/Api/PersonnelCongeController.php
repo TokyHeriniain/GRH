@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Leave;
 use App\Models\Personnel;
 use App\Models\LeaveBalance;
+use App\Models\Holiday;
 use Illuminate\Http\Request;
+use Carbon\Carbon;
 
 class PersonnelCongeController extends Controller
 {
@@ -17,8 +19,9 @@ class PersonnelCongeController extends Controller
     {
         $perPage = $request->input('per_page', 10);
         $page = $request->input('page', 1);
+
         // ================= FILTRES =================
-        $query = Leave::with(['leaveType'])
+        $query = Leave::with(['leaveType', 'validatedBy'])
             ->where('personnel_id', $personnel->id);
 
         if ($request->filled('status')) {
@@ -43,7 +46,43 @@ class PersonnelCongeController extends Controller
             ->orderBy('date_debut', 'desc')
             ->offset(($page - 1) * $perPage)
             ->limit($perPage)
-            ->get();
+            ->get()
+            ->map(function ($leave) {
+                $impactedHolidays = [];
+
+                // 🔹 Calcul des jours fériés impactés
+                if ($leave->leaveType->avec_solde && !$leave->leaveType->est_exceptionnel) {
+                    $impactedHolidays = Holiday::whereBetween(
+                        'date',
+                        [$leave->date_debut, $leave->date_fin]
+                    )
+                    ->get()
+                    ->map(fn ($h) => [
+                        'title' => $h->title,
+                        'date' => Carbon::parse($h->date)->format('Y-m-d'),
+                    ])
+                    ->toArray();
+                }
+
+                return [
+                    'id' => $leave->id,
+                    'leave_type' => [
+                        'nom' => $leave->leaveType->nom,
+                    ],
+                    'date_debut' => $leave->date_debut,
+                    'date_fin' => $leave->date_fin,
+                    'heure_debut' => $leave->heure_debut,
+                    'heure_fin' => $leave->heure_fin,
+                    'jours_utilises' => round($leave->jours_utilises, 2),
+                    'status' => $leave->status,
+                    'created_at' => $leave->created_at,
+                    'updated_at' => $leave->updated_at,
+                    'validated_by' => $leave->validatedBy
+                        ? ['name' => $leave->validatedBy->name]
+                        : null,
+                    'impacted_holidays' => $impactedHolidays,
+                ];
+            });
 
         // ================= SOLDES PAR TYPE =================
         $soldes = Leave::where('personnel_id', $personnel->id)
@@ -85,7 +124,7 @@ class PersonnelCongeController extends Controller
             ],
             'soldes' => $soldes,
             'conges' => $conges,
-            'total' => $total, // total de congés filtrés
+            'total' => $total,
         ]);
     }
 }

@@ -87,7 +87,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/import/legacy', [ImportLegacyDataController::class, 'import']);
     Route::get('/import/check-balances', [ImportLegacyDataController::class, 'checkBalances']);
     Route::get('/import/histories', [ImportLegacyDataController::class, 'listImportHistories']);
-
+    //historique des congés d’un personnel
     Route::get('/personnels/{personnel}/conges',[PersonnelCongeController::class, 'index']);
 
 
@@ -231,5 +231,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/directions-arborescence', [DirectionController::class, 'arborescence']);
 
     Route::apiResource('personnels', \App\Http\Controllers\PersonnelController::class);
+    Route::apiResource('holidays', HolidayController::class);
 
 });
