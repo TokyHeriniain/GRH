@@ -29,8 +29,8 @@ class DatabaseSeeder extends Seeder
 
         // 👉 Appeler ici tous les autres seeders
         $this->call([
-            RHSeeder::class,
-            LeaveTypeSeeder::class,
+            PermissionSeeder::class,
+            RolePermissionSeeder::class,
         ]);
     }
 }

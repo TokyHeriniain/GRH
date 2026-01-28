@@ -102,7 +102,7 @@ const Sidebar = () => {
               className="nav-link d-flex align-items-center text-white"
             >
               <FiUser className="me-2" />
-              {!collapsed && "Profil"}
+              {!collapsed && "Mon Profil"}
             </NavLink>
           </li>
 
@@ -183,10 +183,15 @@ const Sidebar = () => {
               <li>
                 <NavLink to="/admin/users" className="nav-link d-flex text-white">
                   <FiUsers className="me-2" />
-                  {!collapsed && "Utilisateurs"}
+                  {!collapsed && "Gestion Utilisateurs"}
                 </NavLink>
               </li>
-
+              <li>
+                <NavLink to="/admin/rolepermission" className="nav-link d-flex text-white">
+                  <FiUsers className="me-2" />
+                  {!collapsed && "Gestion Rôles & Permissions"}
+                </NavLink>
+              </li>
               <li>
                 <button
                   className="nav-link d-flex text-white w-100"

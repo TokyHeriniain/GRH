@@ -6,8 +6,6 @@ import { toast } from 'react-toastify';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import Dashboard from './pages/Dashboard';
-import ProfilePage from './pages/ProfilePage';
-import UserManagement from './pages/UserManagement';
 import Unauthorized from './pages/Unauthorized';
 import GestionPersonnels from './pages/GestionPersonnels';
 import StructureManagement from './pages/StructureManagement';
@@ -18,6 +16,9 @@ import ClotureAnnuelleRH from './pages/rh/ClotureAnnuelleRH';
 import DashboardRH from './pages/rh/DashboardRH';
 import JournalRH from './pages/rh/JournalRH';
 import HolidaysManagement from './pages/HolidaysManagement';
+import AdminUsers from './pages/admin/AdminUsers';
+import Profile from './pages/profile/Profile';
+import RolePermissions from './pages/admin/RolePermissions';
 
 const ProtectedRoute = ({ children, roles }) => {
     const { user } = useAuth();
@@ -47,7 +48,7 @@ const AppRoutes = () => {
 
                 <Route path="/profil" element={
                     <ProtectedRoute>
-                        <ProfilePage />
+                        <Profile />
                     </ProtectedRoute>
                 } />
 
@@ -56,9 +57,14 @@ const AppRoutes = () => {
                 {/* Admin only */}
                 <Route path="/admin/users" element={
                     <ProtectedRoute roles={['Admin']}>
-                        <UserManagement />
+                        <AdminUsers />
                     </ProtectedRoute>
                 } />     
+                <Route path="/admin/rolepermission" element={
+                    <ProtectedRoute roles={['Admin']}>
+                        <RolePermissions />
+                    </ProtectedRoute>
+                } />
                 <Route path="/register" element={
                     <ProtectedRoute roles={['Admin']}>
                         <RegisterPage />

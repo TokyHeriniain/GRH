@@ -3,7 +3,6 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\{
     AuthController,
-    UserController,
     StatsController,
     AdminController,
     LeaveController,
@@ -18,7 +17,8 @@ use App\Http\Controllers\{
     ImportLegacyDataController,
     LeaveBalanceController,
     PersonnelSoldesController,
-    LeaveExportController
+    LeaveExportController,
+    ProfileController
     
 };
 use App\Http\Controllers\Api\PersonnelImportController;
@@ -48,8 +48,12 @@ Route::middleware('auth:sanctum')->group(function () {
     // 👤 Profil utilisateur connecté
     Route::get('/me',        [AuthController::class, 'me']);
     Route::post('/logout',   [AuthController::class, 'logout']);
-    Route::put('/profile',   [UserController::class, 'updateProfile']);
     Route::get('/stats',     [StatsController::class, 'index']);
+
+    Route::get('/profile', [ProfileController::class, 'show']);
+    Route::put('/profile', [ProfileController::class, 'update']);
+    Route::put('/profile/password', [ProfileController::class, 'updatePassword']);
+
 
     // 📁 Gestion des personnels (RH/Admin)
     Route::get('/personnels',                     [PersonnelController::class, 'index']);
@@ -209,14 +213,30 @@ Route::middleware('auth:sanctum')->group(function () {
             ->get();
     });
 
-    // 👑 Administration
-    Route::middleware('check.role:Admin')->prefix('admin')->group(function () {
-        Route::get('/users',                   [AdminController::class, 'listUsers']);
-        Route::put('/users/{user}/role',       [AdminController::class, 'updateUserRole']);
-        Route::delete('/users/{user}',         [AdminController::class, 'deleteUser']);
-        Route::post('/users/test',             [AdminController::class, 'createTestUser']);
-        Route::delete('/users/reset-tests',    [AdminController::class, 'resetTestUsers']);
-        Route::post('/users/test-rh',          [AdminController::class, 'createTestRHUser']);
+
+
+    // 👑 Administration - accès uniquement aux Admins
+    Route::middleware(['auth:sanctum', 'permission:users.manage'])
+    ->prefix('admin')
+    ->group(function () {
+
+        // 📋 Utilisateurs
+        Route::get('/users',        [AdminController::class, 'listUsers']);
+        Route::post('/users',       [AdminController::class, 'storeUser']);
+        Route::put('/users/{user}', [AdminController::class, 'updateUser'])->whereNumber('user');
+        Route::delete('/users/{user}', [AdminController::class, 'deleteUser'])->whereNumber('user');
+
+        // 🧪 Utilisateurs test
+        Route::post('/users/test',        [AdminController::class, 'createTestUser']);
+        Route::post('/users/test-rh',     [AdminController::class, 'createTestRHUser']);
+        Route::delete('/users/reset-tests',[AdminController::class, 'resetTestUsers']);
+
+        // 🔁 Rôle
+        Route::put('/users/{user}/role', [AdminController::class, 'updateUserRole'])
+            ->whereNumber('user');
+        Route::get('/roles', [AdminController::class, 'listRoles']);
+        Route::get('/roles/{role}/permissions', [AdminController::class, 'getRolePermissions']);
+        Route::put('/roles/{role}/permissions', [AdminController::class, 'syncRolePermissions']);
     });
 
         // Routes CRUD Directions
@@ -234,3 +254,4 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('holidays', HolidayController::class);
 
 });
+

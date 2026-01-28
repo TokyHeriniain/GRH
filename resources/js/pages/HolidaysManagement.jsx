@@ -164,7 +164,7 @@ export default function HolidaysManagement() {
       </Card.Body>
 
       {/* ================= MODAL ================= */}
-      <Modal show={showModal} onHide={closeModal}>
+      <Modal show={showModal} onHide={closeModal} centered>
         <Modal.Header closeButton>
           <Modal.Title>
             {editing ? "Modifier" : "Ajouter"} un jour férié
