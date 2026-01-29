@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import axios from 'axios';
+import api from 'axios';
 
 const PersonnelDocuments = () => {
   const { id } = useParams();
@@ -17,7 +17,7 @@ const PersonnelDocuments = () => {
 
   const loadDocuments = async () => {
     try {
-      const res = await axios.get(`/api/personnels/${id}/documents`);
+      const res = await api.get(`/api/personnels/${id}/documents`);
       setDocuments(res.data);
     } catch {
       alert("Erreur lors du chargement");
@@ -36,7 +36,7 @@ const PersonnelDocuments = () => {
     formData.append('fichier', fichier);
 
     try {
-      const res = await axios.post(`/api/personnels/${id}/documents`, formData, {
+      const res = await api.post(`/api/personnels/${id}/documents`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setDocuments([...documents, res.data]);
@@ -52,7 +52,7 @@ const PersonnelDocuments = () => {
   const handleDelete = async (docId) => {
     if (!window.confirm("Supprimer ce document ?")) return;
     try {
-      await axios.delete(`/api/documents/${docId}`);
+      await api.delete(`/api/documents/${docId}`);
       setDocuments(documents.filter((d) => d.id !== docId));
     } catch {
       alert("Erreur lors de la suppression");

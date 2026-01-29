@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import api from "axios";
 import {
   Card,
   Form,
@@ -20,13 +20,13 @@ export default function RolePermissions() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    axios.get("/api/admin/roles").then((res) => setRoles(res.data));
+    api.get("/api/admin/roles").then((res) => setRoles(res.data));
   }, []);
 
   const loadPermissions = async (roleId) => {
     setLoading(true);
     try {
-      const res = await axios.get(`/api/admin/roles/${roleId}/permissions`);
+      const res = await api.get(`/api/admin/roles/${roleId}/permissions`);
       setPermissions(res.data.permissions);
       setChecked(res.data.assigned);
       setSelectedRole(res.data.role);
@@ -45,7 +45,7 @@ export default function RolePermissions() {
 
   const save = async () => {
     try {
-      await axios.put(`/api/admin/roles/${selectedRole.id}/permissions`, {
+      await api.put(`/api/admin/roles/${selectedRole.id}/permissions`, {
         permissions: checked,
       });
       toast.success("Permissions mises à jour");

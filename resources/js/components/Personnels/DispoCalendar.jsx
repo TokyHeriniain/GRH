@@ -1,6 +1,6 @@
 // resources/js/components/PortailEmploye/DispoCalendar.jsx
 import React, { useEffect, useState, useMemo } from "react";
-import axios from "axios";
+import api from "axios";
 
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
@@ -10,7 +10,7 @@ export default function DispoCalendar({ personnelId }) {
 
   const fetchCalendar = async () => {
     try {
-      const res = await axios.get(`/api/personnels/${personnelId}/dispos`);
+      const res = await api.get(`/api/personnels/${personnelId}/dispos`);
       setEvents(res.data.data);
     } catch (e) {
       console.error("Erreur calendrier:", e);

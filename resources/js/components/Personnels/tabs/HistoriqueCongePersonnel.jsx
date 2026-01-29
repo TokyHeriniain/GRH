@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import api from "axios";
 import dayjs from "dayjs";
 import { Table, Badge, Spinner, OverlayTrigger, Tooltip } from "react-bootstrap";
 
@@ -33,7 +33,7 @@ export default function HistoriqueCongePersonnel({ personnelId }) {
     if (!personnelId) return;
     setLoading(true);
     try {
-      const res = await axios.get(`/api/personnels/${personnelId}/conges`);
+      const res = await api.get(`/api/personnels/${personnelId}/conges`);
       setConges(res.data.conges || []);
     } catch (e) {
       console.error(e);

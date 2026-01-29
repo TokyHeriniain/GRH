@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import api from "axios";
 import { Table, Form, Button, Spinner, Pagination } from "react-bootstrap";
 import NavigationLayout from "../../components/NavigationLayout";
 
@@ -16,7 +16,7 @@ export default function JournalRH() {
 
   const fetchData = () => {
     setLoading(true);
-    axios
+    api
       .get("/api/rh/journal", {
         params: { ...filters, page },
       })

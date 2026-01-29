@@ -5,12 +5,10 @@ import { toast } from 'react-toastify';
 
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
-import Dashboard from './pages/Dashboard';
 import Unauthorized from './pages/Unauthorized';
 import GestionPersonnels from './pages/GestionPersonnels';
 import StructureManagement from './pages/StructureManagement';
 import GestionConge from './pages/Conges/GestionConge';
-import DashboardPage from './pages/DashboardPage';
 import PersonnelShow from './components/Personnels/PersonnelShow';
 import ClotureAnnuelleRH from './pages/rh/ClotureAnnuelleRH';
 import DashboardRH from './pages/rh/DashboardRH';
@@ -38,8 +36,6 @@ const AppRoutes = () => {
             <Routes>
                 {/* Public routes */}
                 <Route path="/login" element={!user ? <LoginPage /> : <Navigate to="/dashboard" />} />
-{/*                 <Route path="/register" element={!user ? <RegisterPage /> : <Navigate to="/dashboard" />} /> */}
-                {/* Dashboard par rôle */}
                 <Route path="/dashboard" element={
                     <ProtectedRoute roles={['Admin', 'RH']}>
                         <DashboardRH />

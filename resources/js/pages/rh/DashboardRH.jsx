@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import api from "axios";
 
 import CongesParTypeChart from "./charts/CongesParTypeChart";
 import CongesMensuelsChart from "./charts/CongesMensuelsChart";
@@ -11,7 +11,7 @@ export default function DashboardRH() {
   const [data, setData] = useState(null);
 
   const fetchDashboard = async () => {
-    const res = await axios.get("/api/rh/dashboard");
+    const res = await api.get("/api/rh/dashboard");
     setData(res.data);
   };
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import api from "axios";
 import dayjs from "dayjs";
 import AsyncSelect from "react-select/async";
 import { Form, Row, Col, Button, Spinner, Badge } from "react-bootstrap";
@@ -33,7 +33,7 @@ export default function HistoriqueConge({ reload }) {
       const params = { page, per_page: perPage };
       Object.entries(filters).forEach(([k, v]) => v && (params[k] = v));
 
-      const res = await axios.get("/api/conges/historique", { params });
+      const res = await api.get("/api/conges/historique", { params });
 
       setConges(res.data.data || []);
       setCurrentPage(res.data.current_page || 1);
@@ -54,7 +54,7 @@ export default function HistoriqueConge({ reload }) {
      ASYNC SELECT
   ========================= */
   const loadPersonnels = (q) =>
-    axios.get(`/api/personnels-search?q=${q || ""}`).then((res) =>
+    api.get(`/api/personnels-search?q=${q || ""}`).then((res) =>
       res.data.map((p) => ({
         value: p.id,
         label: `${p.matricule} - ${p.nom} ${p.prenom}`,
@@ -62,7 +62,7 @@ export default function HistoriqueConge({ reload }) {
     );
 
   const loadLeaveTypes = (q) =>
-    axios.get(`/api/leave-types-search?q=${q || ""}`).then((res) =>
+    api.get(`/api/leave-types-search?q=${q || ""}`).then((res) =>
       res.data.map((t) => ({
         value: t.id,
         label: t.nom,

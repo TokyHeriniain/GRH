@@ -1,6 +1,6 @@
 import '../../css/app.css';
 import { useState } from 'react';
-import axios from 'axios';
+import api from 'axios';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 import NavigationLayout from '../components/NavigationLayout';
@@ -15,7 +15,7 @@ const ProfilePage = () => {
         e.preventDefault();
         setLoading(true);
         try {
-            await axios.put('/api/profile', { name, password }, { withCredentials: true });
+            await api.put('/api/profile', { name, password }, { withCredentials: true });
             toast.success('✅ Profil mis à jour avec succès');
             setPassword('');
         } catch (error) {

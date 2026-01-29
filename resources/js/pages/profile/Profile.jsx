@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import api from "axios";
 import {
   Card,
   Form,
@@ -34,7 +34,7 @@ export default function Profile() {
 
   const fetchProfile = async () => {
     try {
-      const res = await axios.get("/api/profile");
+      const res = await api.get("/api/profile");
       setUser(res.data);
       setForm({
         name: res.data.name,
@@ -51,7 +51,7 @@ export default function Profile() {
     e.preventDefault();
     setSaving(true);
     try {
-      await axios.put("/api/profile", form);
+      await api.put("/api/profile", form);
       toast.success("Profil mis à jour");
       fetchProfile();
     } catch (e) {
@@ -64,7 +64,7 @@ export default function Profile() {
   const updatePassword = async (e) => {
     e.preventDefault();
     try {
-      await axios.put("/api/profile/password", passwordForm);
+      await api.put("/api/profile/password", passwordForm);
       toast.success("Mot de passe modifié");
       setPasswordForm({
         current_password: "",

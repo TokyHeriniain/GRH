@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import axios from "axios";
+import api from "../../axios"; // instance Axios centralisée
 import Select from "react-select";
 import debounce from "lodash.debounce";
 import { Table, Button, Form, Row, Col, Badge, Alert, Card } from "react-bootstrap";
@@ -16,25 +16,30 @@ export default function ReliquatsEnCours({ reload }) {
   const [rows, setRows] = useState([]);
   const [annee, setAnnee] = useState(new Date().getFullYear());
   const [filters, setFilters] = useState(defaultFilters);
-
   const [directions, setDirections] = useState([]);
   const [services, setServices] = useState([]);
-
   const [totaux, setTotaux] = useState(null);
   const [alertThreshold, setAlertThreshold] = useState(5);
 
   // ================= FETCH DATA =================
   const fetchData = async (f = filters) => {
-    const params = {
-      search: f.search,
-      direction: f.direction?.value || "",
-      service: f.service?.value || "",
-    };
+    try {
+      const params = {
+        search: f.search,
+        direction: f.direction?.value || "",
+        service: f.service?.value || "",
+      };
 
-    const res = await axios.get("/api/rh/reliquats", { params });
-    setRows(res.data.data);
-    setAnnee(res.data.annee);
-    setTotaux(res.data.totaux);
+      const res = await api.get("/api/rh/reliquats", { params });
+
+      setRows(Array.isArray(res.data?.data) ? res.data.data : []);
+      setAnnee(res.data?.annee ?? new Date().getFullYear());
+      setTotaux(res.data?.totaux ?? null);
+    } catch (err) {
+      console.error("Erreur fetchData", err);
+      setRows([]);
+      setTotaux(null);
+    }
   };
 
   // ================= DEBOUNCED SEARCH =================
@@ -45,13 +50,50 @@ export default function ReliquatsEnCours({ reload }) {
 
   // ================= LOAD OPTIONS =================
   useEffect(() => {
-    axios.get("/api/directions").then((res) =>
-      setDirections(res.data.map((d) => ({ value: d.nom, label: d.nom })))
-    );
+    const loadDirections = async () => {
+      try {
+        const res = await api.get("/api/directions");
 
-    axios.get("/api/services").then((res) =>
-      setServices(res.data.map((s) => ({ value: s.nom, label: s.nom })))
-    );
+        const data = Array.isArray(res.data)
+          ? res.data
+          : Array.isArray(res.data?.data)
+          ? res.data.data
+          : [];
+
+        setDirections(data.map((d) => ({
+          value: d.nom,
+          label: d.nom,
+        })));
+      } catch (err) {
+        console.error("Erreur directions", err);
+        setDirections([]);
+      }
+    };
+
+
+    const loadServices = async () => {
+      try {
+        const res = await api.get("/api/services");
+
+        const data = Array.isArray(res.data)
+          ? res.data
+          : Array.isArray(res.data?.data)
+          ? res.data.data
+          : [];
+
+        setServices(data.map((s) => ({
+          value: s.nom,
+          label: s.nom,
+        })));
+      } catch (err) {
+        console.error("Erreur services", err);
+        setServices([]);
+      }
+    };
+
+
+    loadDirections();
+    loadServices();
   }, []);
 
   // ================= INITIAL LOAD =================
@@ -78,12 +120,6 @@ export default function ReliquatsEnCours({ reload }) {
   };
 
   // ================= EXPORT =================
-  const exportFile = (type) => {
-    window.open(
-      `/api/rh/reliquats/export/${type}?${buildExportParams()}`,
-      "_blank"
-    );
-  };
   const buildExportParams = () =>
     new URLSearchParams({
       search: filters.search || "",
@@ -92,7 +128,9 @@ export default function ReliquatsEnCours({ reload }) {
       annee,
     }).toString();
 
-
+  const exportFile = (type) => {
+    window.open(`/api/rh/reliquats/export/${type}?${buildExportParams()}`, "_blank");
+  };
 
   return (
     <>
@@ -115,12 +153,8 @@ export default function ReliquatsEnCours({ reload }) {
       {totaux && (
         <Alert variant="info" className="fw-semibold">
           Total agents : <strong>{totaux.agents}</strong> — Reliquats cumulés :{" "}
-          <strong
-            className={
-              totaux.reliquats <= alertThreshold ? "text-danger" : ""
-            }
-          >
-            {totaux.reliquats.toFixed(2)} jours
+          <strong className={totaux.reliquats <= alertThreshold ? "text-danger" : ""}>
+            {n(totaux.reliquats)} jours
           </strong>
         </Alert>
       )}
@@ -176,10 +210,7 @@ export default function ReliquatsEnCours({ reload }) {
         <Button
           variant="outline-danger"
           onClick={() =>
-            window.open(
-              `/api/rh/reliquats/export/pdf?preview=1&${buildExportParams()}`,
-              "_blank"
-            )
+            window.open(`/api/rh/reliquats/export/pdf?preview=1&${buildExportParams()}`, "_blank")
           }
         >
           👁️ Aperçu PDF
@@ -187,15 +218,13 @@ export default function ReliquatsEnCours({ reload }) {
         <Button
           variant="primary"
           onClick={() =>
-            window.open(
-              `/api/rh/reliquats/export/excel-multisheet?${buildExportParams()}`,
-              "_blank"
-            )
+            window.open(`/api/rh/reliquats/export/excel-multisheet?${buildExportParams()}`, "_blank")
           }
         >
           📁 Export Excel par direction
         </Button>
-      </div>      
+      </div>
+
       {/* ================= TABLE ================= */}
       <Table bordered hover size="sm" className="align-middle">
         <thead className="table-light">
@@ -208,7 +237,7 @@ export default function ReliquatsEnCours({ reload }) {
           </tr>
         </thead>
         <tbody>
-          {rows.length === 0 && (
+          {Array.isArray(rows) && rows.length === 0 && (
             <tr>
               <td colSpan={5} className="text-center text-muted">
                 Aucune donnée
@@ -216,7 +245,7 @@ export default function ReliquatsEnCours({ reload }) {
             </tr>
           )}
 
-          {rows.map((r) => (
+          {Array.isArray(rows) && rows.map((r) => (
             <tr key={r.matricule}>
               <td>{r.matricule}</td>
               <td>{r.personnel}</td>
@@ -224,9 +253,7 @@ export default function ReliquatsEnCours({ reload }) {
               <td>{r.service}</td>
               <td
                 className={`text-end fw-bold ${
-                  r.reliquat <= alertThreshold
-                    ? "text-danger bg-warning-subtle"
-                    : ""
+                  r.reliquat <= alertThreshold ? "text-danger bg-warning-subtle" : ""
                 }`}
               >
                 {n(r.reliquat)}
@@ -256,12 +283,8 @@ export default function ReliquatsEnCours({ reload }) {
                 <tr key={dir}>
                   <td>{dir || "—"}</td>
                   <td>{v.agents}</td>
-                  <td
-                    className={`text-end fw-bold ${
-                      v.reliquat <= alertThreshold ? "text-danger" : ""
-                    }`}
-                  >
-                    {v.reliquat.toFixed(2)}
+                  <td className={`text-end fw-bold ${v.reliquat <= alertThreshold ? "text-danger" : ""}`}>
+                    {n(v.reliquat)}
                   </td>
                 </tr>
               ))}

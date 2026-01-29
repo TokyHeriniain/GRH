@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import api from "axios";
 import {
   Card,
   Table,
@@ -44,7 +44,7 @@ export default function AdminUsers() {
 
   useEffect(() => {
     // Récupérer l'utilisateur connecté
-    axios.get("/api/user").then((res) => setAuthUserId(res.data.id));
+    api.get("/api/user").then((res) => setAuthUserId(res.data.id));
     fetchUsers();
   }, []);
 
@@ -52,7 +52,7 @@ export default function AdminUsers() {
   const fetchUsers = async (pageNumber = 1) => {
     setLoading(true);
     try {
-      const res = await axios.get("/api/admin/users", {
+      const res = await api.get("/api/admin/users", {
         params: { page: pageNumber, search, role: roleFilter },
       });
       setUsers(res.data.data);
@@ -81,7 +81,7 @@ export default function AdminUsers() {
     }
     setUpdatingUserId(userId);
     try {
-      await axios.put(`/api/admin/users/${userId}/role`, { role });
+      await api.put(`/api/admin/users/${userId}/role`, { role });
       toast.success("Rôle mis à jour");
       fetchUsers(page);
     } catch (e) {
@@ -99,7 +99,7 @@ export default function AdminUsers() {
     }
     if (!window.confirm("Supprimer cet utilisateur ?")) return;
     try {
-      await axios.delete(`/api/admin/users/${userId}`);
+      await api.delete(`/api/admin/users/${userId}`);
       toast.success("Utilisateur supprimé");
       fetchUsers(page > 1 && users.length === 1 ? page - 1 : page);
     } catch (e) {
@@ -110,7 +110,7 @@ export default function AdminUsers() {
   // ---------------- CREATE / RESET TEST USERS ----------------
   const createTestUser = async (role) => {
     try {
-      await axios.post("/api/admin/users/test", { role });
+      await api.post("/api/admin/users/test", { role });
       toast.success(`Utilisateur test ${role} créé`);
       fetchUsers(page);
     } catch {
@@ -121,7 +121,7 @@ export default function AdminUsers() {
   const resetTestUsers = async () => {
     if (!window.confirm("Supprimer TOUS les utilisateurs test ?")) return;
     try {
-      const res = await axios.delete("/api/admin/users/reset-tests");
+      const res = await api.delete("/api/admin/users/reset-tests");
       toast.success(res.data.message);
       fetchUsers(1);
     } catch {
@@ -153,10 +153,10 @@ export default function AdminUsers() {
     }
     try {
       if (editingUser) {
-        await axios.put(`/api/admin/users/${editingUser.id}`, formUser);
+        await api.put(`/api/admin/users/${editingUser.id}`, formUser);
         toast.success("Utilisateur modifié");
       } else {
-        await axios.post("/api/admin/users", formUser);
+        await api.post("/api/admin/users", formUser);
         toast.success("Utilisateur créé");
       }
       setShowModal(false);

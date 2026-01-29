@@ -1,6 +1,6 @@
 // resources/js/context/AuthContext.jsx
 import { createContext, useContext, useEffect, useState } from 'react';
-import axios from '../axios';
+import api from '../axios';
 
 
 const AuthContext = createContext();
@@ -12,8 +12,8 @@ export const AuthProvider = ({ children }) => {
 
   const getUser = async () => {
     try {
-      await axios.get('/sanctum/csrf-cookie'); // 👈 Important pour auth:sanctum
-      const res = await axios.get('/api/me');
+      await api.get('/sanctum/csrf-cookie'); // 👈 Important pour auth:sanctum
+      const res = await api.get('/api/me');
       setUser(res.data);
     } catch (err) {
       setUser(null);
@@ -23,19 +23,19 @@ export const AuthProvider = ({ children }) => {
   };
 
   const login = async (email, password) => {
-    await axios.get('/sanctum/csrf-cookie'); // 👈 Nécessaire avant un POST avec cookies
-    const res = await axios.post('/api/login', { email, password });
+    await api.get('/sanctum/csrf-cookie'); // 👈 Nécessaire avant un POST avec cookies
+    const res = await api.post('/api/login', { email, password });
     setUser(res.data.user);
   };
 
   const register = async (formData) => {
-    await axios.get('/sanctum/csrf-cookie');
-    const res = await axios.post('/api/register', formData);
+    await api.get('/sanctum/csrf-cookie');
+    const res = await api.post('/api/register', formData);
     setUser(res.data.user);
   };
 
   const logout = async () => {
-    await axios.post('/api/logout');
+    await api.post('/api/logout');
     setUser(null);
   };
 

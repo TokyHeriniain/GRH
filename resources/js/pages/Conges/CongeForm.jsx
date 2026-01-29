@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Button, Card, Col, Form, InputGroup, Row, Alert } from "react-bootstrap";
 import AsyncSelect from "react-select/async";
-import axios from "axios";
+import api from "axios";
 
 export default function CongeForm({
   setReloadLeaves,
@@ -86,7 +86,7 @@ export default function CongeForm({
 
   /* ================= ASYNC LOADERS ================= */
   const loadPersonnels = async (q) => {
-    const res = await axios.get(`/api/personnels-search?q=${q || ""}`);
+    const res = await api.get(`/api/personnels-search?q=${q || ""}`);
     return res.data.map((p) => ({
       value: p.id,
       label: `${p.matricule} - ${p.nom} ${p.prenom}`,
@@ -94,7 +94,7 @@ export default function CongeForm({
   };
 
   const loadLeaveTypes = async (q) => {
-    const res = await axios.get(`/api/leave-types-search?q=${q || ""}`);
+    const res = await api.get(`/api/leave-types-search?q=${q || ""}`);
     return res.data.map((t) => ({ value: t.id, label: t.nom }));
   };
 
@@ -113,10 +113,10 @@ export default function CongeForm({
 
     try {
       if (editingId) {
-        await axios.put(`/api/rh/leaves/${editingId}`, payload);
+        await api.put(`/api/rh/leaves/${editingId}`, payload);
         notifySuccess("✔ Congé mis à jour");
       } else {
-        await axios.post(`/api/rh/leaves`, payload);
+        await api.post(`/api/rh/leaves`, payload);
         notifySuccess("✔ Congé ajouté");
       }
 

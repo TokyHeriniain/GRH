@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Pagination, Tab, Tabs } from "react-bootstrap";
-import axios from "axios";
+import api from "axios";
 import NavigationLayout from "../../components/NavigationLayout";
 import { ToastContainer, toast } from "react-toastify";
 
@@ -63,7 +63,7 @@ export default function GestionConge() {
 
   const fetchData = async (page = 1) => {
     try {
-      const res = await axios.get(`/api/rh/leaves?status=all&page=${page}&per_page=5`);
+      const res = await api.get(`/api/rh/leaves?status=all&page=${page}&per_page=5`);
       setLeaves(res.data.data);          // Assurez-vous que votre controller renvoie bien { data, current_page, last_page }
       setTotalPages(res.data.last_page);
       setCurrentPage(res.data.current_page);
@@ -74,18 +74,18 @@ export default function GestionConge() {
 
 
   const fetchPersonnels = async () => {
-    const res = await axios.get("/api/personnels");
+    const res = await api.get("/api/personnels");
     setPersonnels(res.data.data);
   };
 
   const fetchLeaveTypes = async () => {
-    const res = await axios.get("/api/leave-types");
+    const res = await api.get("/api/leave-types");
     setLeaveTypes(res.data);
   };
 
   const rhValidate = async (id) => {
     try {
-      const res = await axios.post(`/api/rh/leaves/${id}/approve`);
+      const res = await api.post(`/api/rh/leaves/${id}/approve`);
       setLeaves((prev) => prev.map((l) => (l.id === id ? res.data.data : l)));
       setReloadLeaves((r) => r + 1);
       toast.success("Congé validé RH");
@@ -96,7 +96,7 @@ export default function GestionConge() {
 
   const rejectLeave = async (leave, motif) => {
     try {
-      const res = await axios.post(`/api/rh/leaves/${leave.id}/reject`, {
+      const res = await api.post(`/api/rh/leaves/${leave.id}/reject`, {
         rejection_reason: motif,
       });
       setLeaves((prev) => prev.map((l) => (l.id === leave.id ? res.data.data : l)));
@@ -118,7 +118,7 @@ export default function GestionConge() {
     setRemoving((prev) => [...prev, id]);
 
     try {
-      await axios.delete(`/api/rh/leaves/${id}`);
+      await api.delete(`/api/rh/leaves/${id}`);
       await fetchData(currentPage);
       setReloadLeaves((r) => r + 1);
       toast.success("Congé supprimé");

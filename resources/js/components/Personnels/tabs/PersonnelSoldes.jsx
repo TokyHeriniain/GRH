@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import api from "axios";
 import { Card, Table, Badge, Spinner, Alert, OverlayTrigger, Tooltip } from "react-bootstrap";
 
 export default function PersonnelSoldes({ personnelId, annee }) {
@@ -16,9 +16,9 @@ export default function PersonnelSoldes({ personnelId, annee }) {
     setLoading(true);
     setError(null);
 
-    const source = axios.CancelToken.source();
+    const source = api.CancelToken.source();
 
-    axios
+    api
       .get(`/api/personnels/${personnelId}/soldes${annee ? `?annee=${annee}` : ""}`, {
         cancelToken: source.token,
       })
@@ -27,7 +27,7 @@ export default function PersonnelSoldes({ personnelId, annee }) {
         setPersonnel(res.data.personnel || null);
       })
       .catch((err) => {
-        if (!axios.isCancel(err)) {
+        if (!api.isCancel(err)) {
           setError("Impossible de charger les soldes de congés.");
         }
       })

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import api from "axios";
 import { Row, Col } from "react-bootstrap";
 import ComparatifCard from "./ComparatifCard";
 
@@ -7,7 +7,7 @@ export default function ComparatifAnnuel() {
   const [data, setData] = useState(null);
 
   useEffect(() => {
-    axios.get("/api/rh/dashboard/comparatif")
+    api.get("/api/rh/dashboard/comparatif")
       .then(res => setData(res.data));
   }, []);
 

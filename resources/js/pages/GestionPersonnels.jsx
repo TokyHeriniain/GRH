@@ -17,7 +17,7 @@ import {
   Dropdown
 } from "react-bootstrap";
 import { FaSearch, FaSyncAlt, FaFileExport, FaPlus, FaEdit, FaTrash } from "react-icons/fa";
-import axios from "../axios";
+import api from "../axios";
 import Select from "react-select";
 import { toast, ToastContainer } from "react-toastify";
 import ImportLegacyData from "./ImportLegacyData";
@@ -117,13 +117,13 @@ export default function GestionPersonnelsModern() {
   const fetchStructures = useCallback(async () => {
     try {
       const [d, s, f] = await Promise.all([
-        axios.get("/api/directions"),
-        axios.get("/api/services"),
-        axios.get("/api/fonctions"),
+        api.get("/api/directions"),
+        api.get("/api/services"),
+        api.get("/api/fonctions"),
       ]);
-      setDirections(d.data || []);
-      setServices(s.data || []);
-      setFonctions(f.data || []);
+      setDirections(d.data.data || []);
+      setServices(s.data.data || []);
+      setFonctions(f.data.data || []);
     } catch (e) {
       console.error(e);
       toastError("Impossible de charger les structures");
@@ -143,7 +143,7 @@ export default function GestionPersonnelsModern() {
         service_id: filterService?.value,
       };
 
-      const res = await axios.get("/api/personnels", { params });
+      const res = await api.get("/api/personnels", { params });
 
       const payload = res.data;
       setPersonnels(payload.data || []);
@@ -237,7 +237,7 @@ export default function GestionPersonnelsModern() {
 
       if (!all) {
         // 👉 export page courante (logique RH)
-        const res = await axios.get("/api/personnels", {
+        const res = await api.get("/api/personnels", {
           params: {
             ...baseParams,
             page: currentPage,
@@ -251,7 +251,7 @@ export default function GestionPersonnelsModern() {
         let lastPage = 1;
 
         do {
-          const res = await axios.get("/api/personnels", {
+          const res = await api.get("/api/personnels", {
             params: {
               ...baseParams,
               page,
@@ -355,12 +355,12 @@ export default function GestionPersonnelsModern() {
         if (form[k] !== null && form[k] !== undefined) fd.append(k, form[k]);
       });
       if (editing) {
-        await axios.post(`/api/personnels/${editing}?_method=PUT`, fd, {
+        await api.post(`/api/personnels/${editing}?_method=PUT`, fd, {
           headers: { "Content-Type": "multipart/form-data" },
         });
         toastSuccess("Personnel mis à jour");
       } else {
-        await axios.post("/api/personnels", fd, {
+        await api.post("/api/personnels", fd, {
           headers: { "Content-Type": "multipart/form-data" },
         });
         toastSuccess("Personnel ajouté");
@@ -383,7 +383,7 @@ export default function GestionPersonnelsModern() {
   const handleDelete = async (id) => {
     if (!confirm("Confirmer la suppression ?")) return;
     try {
-      await axios.delete(`/api/personnels/${id}`);
+      await api.delete(`/api/personnels/${id}`);
       toastSuccess("Supprimé");
       fetchPersonnels(currentPage);
     } catch (e) {
@@ -396,7 +396,7 @@ export default function GestionPersonnelsModern() {
     if (selectedIds.length === 0) return;
     if (!confirm(`Supprimer ${selectedIds.length} personnels ?`)) return;
     try {
-      await axios.post("/api/personnels/delete-multiple", { ids: selectedIds });
+      await api.post("/api/personnels/delete-multiple", { ids: selectedIds });
       setSelectedIds([]);
       toastSuccess("Suppression groupée effectuée");
       fetchPersonnels(currentPage);

@@ -1,7 +1,7 @@
 import '../../css/app.css';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import axios from 'axios';
+import api from 'axios';
 
 const roles = [
   { id: 1, name: 'Admin' },
@@ -18,7 +18,7 @@ const RoleManagement = ({ users }) => {
 
     setLoadingId(userId);
     try {
-      await axios.put(`/api/users/${userId}/role`, { role_id: roleId }, { withCredentials: true });
+      await api.put(`/api/users/${userId}/role`, { role_id: roleId }, { withCredentials: true });
       toast.success('Rôle mis à jour avec succès.');
     } catch (error) {
       toast.error('Erreur lors de la mise à jour du rôle.');

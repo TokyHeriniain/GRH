@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import axios from "axios";
+import api from "axios";
 import { Table, Spinner, Alert } from "react-bootstrap";
 
 export default function HistoriqueClotures() {
@@ -12,7 +12,7 @@ export default function HistoriqueClotures() {
      FETCH HISTORIQUE DES ANNÉES
   =============================== */
   useEffect(() => {
-    axios
+    api
       .get("/api/rh/cloture/historique")
       .then((res) => {
         const data = Array.isArray(res.data) ? res.data : [];
@@ -30,7 +30,7 @@ export default function HistoriqueClotures() {
     if (!anneeSelected) return;
 
     setLoading(true);
-    axios
+    api
       .get(`/api/rh/cloture/closed/${anneeSelected}`)
       .then((res) => setRows(res.data || []))
       .catch(() => setRows([]))

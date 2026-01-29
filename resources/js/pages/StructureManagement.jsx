@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import axios from '../axios';
+import api from '../axios';
 import { Button, Modal, Form } from 'react-bootstrap';
 import NavigationLayout from "../components/NavigationLayout";
 
@@ -26,15 +26,15 @@ export default function StructureManagement() {
 
   const fetchItems = async () => {
     try {
-      const res = await axios.get(API_MAP[activeTab]);
+      const res = await api.get(API_MAP[activeTab]);
       setItems(res.data);
 
       if (activeTab === 'services' || activeTab === 'fonctions') {
-        const dirRes = await axios.get(API_MAP['directions']);
+        const dirRes = await api.get(API_MAP['directions']);
         setDirections(dirRes.data);
       }
       if (activeTab === 'fonctions') {
-        const servRes = await axios.get(API_MAP['services']);
+        const servRes = await api.get(API_MAP['services']);
         setServices(servRes.data);
       }
     } catch (err) {
@@ -53,9 +53,9 @@ export default function StructureManagement() {
       }
 
       if (editingItem) {
-        await axios.put(`${API_MAP[activeTab]}/${editingItem.id}`, payload);
+        await api.put(`${API_MAP[activeTab]}/${editingItem.id}`, payload);
       } else {
-        await axios.post(API_MAP[activeTab], payload);
+        await api.post(API_MAP[activeTab], payload);
       }
 
       fetchItems();
@@ -79,7 +79,7 @@ export default function StructureManagement() {
   const handleDelete = async (id) => {
     if (!window.confirm('Confirmer la suppression ?')) return;
     try {
-      await axios.delete(`${API_MAP[activeTab]}/${id}`);
+      await api.delete(`${API_MAP[activeTab]}/${id}`);
       fetchItems();
     } catch (err) {
       console.error(err);

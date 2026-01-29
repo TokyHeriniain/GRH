@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, Tabs, Tab, Button, Spinner } from "react-bootstrap";
-import axios from "@/axios";
+import api from "@/axios";
 import NavigationLayout from "../NavigationLayout";
 import { toast } from "react-toastify";
 
@@ -20,7 +20,7 @@ export default function PersonnelShow() {
 
   const fetchPersonnel = async () => {
     try {
-      const res = await axios.get(`/api/personnels/${id}`);
+      const res = await api.get(`/api/personnels/${id}`);
       setPersonnel(res.data.personnel);
     } catch (e) {
       toast.error("Impossible de charger le personnel");

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import api from "axios";
 import dayjs from "dayjs";
 import {
   Card,
@@ -33,7 +33,7 @@ export default function HolidaysManagement() {
   const fetchHolidays = async () => {
     setLoading(true);
     try {
-      const res = await axios.get("/api/holidays", {
+      const res = await api.get("/api/holidays", {
         params: { annee: year },
       });
       setHolidays(res.data);
@@ -70,9 +70,9 @@ export default function HolidaysManagement() {
   const saveHoliday = async () => {
     try {
       if (editing) {
-        await axios.put(`/api/holidays/${editing.id}`, form);
+        await api.put(`/api/holidays/${editing.id}`, form);
       } else {
-        await axios.post("/api/holidays", form);
+        await api.post("/api/holidays", form);
       }
       closeModal();
       fetchHolidays();
@@ -84,7 +84,7 @@ export default function HolidaysManagement() {
   /* ================= DELETE ================= */
   const deleteHoliday = async (h) => {
     if (!window.confirm("Supprimer ce jour férié ?")) return;
-    await axios.delete(`/api/holidays/${h.id}`);
+    await api.delete(`/api/holidays/${h.id}`);
     fetchHolidays();
   };
 

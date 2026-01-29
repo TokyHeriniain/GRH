@@ -5,7 +5,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import '../css/app.css'; // tout en haut
 import { Toaster } from 'react-hot-toast';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import axios from 'axios';
+import api from 'axios';
 import 'react-toastify/dist/ReactToastify.css';
 import { ToastContainer } from 'react-toastify';
 import 'bootstrap-icons/font/bootstrap-icons.css';
@@ -14,8 +14,8 @@ import 'bootstrap-icons/font/bootstrap-icons.css';
 
 
 // ✅ Axios global config
-axios.defaults.baseURL = 'http://localhost:8000';
-axios.defaults.withCredentials = true; // ⬅️ Pour que Sanctum gère les cookies
+api.defaults.baseURL = 'http://localhost:8000';
+api.defaults.withCredentials = true; // ⬅️ Pour que Sanctum gère les cookies
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

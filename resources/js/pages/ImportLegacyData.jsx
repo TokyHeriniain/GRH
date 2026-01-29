@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react";
 import { Button, Spinner } from "react-bootstrap";
 import { FaFileImport } from "react-icons/fa";
-import axios from "../axios";
+import api from "../axios";
 import { toast } from "react-toastify";
 
 /**
@@ -40,7 +40,7 @@ export default function ImportLegacyData({
       setLoading(true);
       onImportStart?.();
 
-      await axios.post("/api/import/legacy", formData, {
+      await api.post("/api/import/legacy", formData, {
         headers: { "Content-Type": "multipart/form-data" },
         onUploadProgress: (progressEvent) => {
           if (progressEvent.total) {

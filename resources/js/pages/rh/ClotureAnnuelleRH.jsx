@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import axios from "axios";
+import api from "axios";
 import { Table, Button, Alert, Spinner, Badge, Tabs, Tab, Form } from "react-bootstrap";
 import { toast } from "react-toastify";
 import NavigationLayout from "../../components/NavigationLayout";
@@ -104,7 +104,7 @@ export default function ClotureAnnuelleRH() {
     try {
       setLoadingPreview(true);
 
-      const statusRes = await axios.get(`/api/rh/cloture/status/${annee}`);
+      const statusRes = await api.get(`/api/rh/cloture/status/${annee}`);
       const closed = Boolean(statusRes.data?.closed);
       setIsClosed(closed);
 
@@ -112,7 +112,7 @@ export default function ClotureAnnuelleRH() {
         ? `/api/rh/cloture/closed/${annee}`
         : `/api/rh/cloture/preview/${annee}`;
 
-      const res = await axios.get(url);
+      const res = await api.get(url);
       setPreviewRows(extractRows(res));
 
     } catch {
@@ -134,7 +134,7 @@ export default function ClotureAnnuelleRH() {
 
     try {
       setExecuting(true);
-      await axios.post(`/api/rh/cloture/execute/${annee}`);
+      await api.post(`/api/rh/cloture/execute/${annee}`);
       toast.success(`Clôture annuelle ${annee} effectuée`);
       fetchStatusAndPreview();
       fetchHistorique();
@@ -150,7 +150,7 @@ export default function ClotureAnnuelleRH() {
   =============================== */
   const fetchHistorique = async () => {
     try {
-      const res = await axios.get("/api/rh/cloture/historique");
+      const res = await api.get("/api/rh/cloture/historique");
       const data = Array.isArray(res.data) ? res.data : [];
       setAnneesHist(data);
       if (data.length > 0 && !anneeHistSelected) setAnneeHistSelected(data[0]);
@@ -166,7 +166,7 @@ export default function ClotureAnnuelleRH() {
   useEffect(() => {
     if (!anneeHistSelected) return;
     setLoadingHist(true);
-    axios.get(`/api/rh/cloture/closed/${anneeHistSelected}`)
+    api.get(`/api/rh/cloture/closed/${anneeHistSelected}`)
       .then(res => {
         const rows = extractRows(res).map(r => ({
           ...r,
