@@ -18,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'check.role' => \App\Http\Middleware\CheckRole::class,
             'permission' => \App\Http\Middleware\CheckPermission::class,
+            'force.password' => \App\Http\Middleware\ForcePasswordChange::class,
         ]);
 
         $middleware->group('api', [

@@ -4,7 +4,6 @@ import NavigationLayout from './components/NavigationLayout';
 import { toast } from 'react-toastify';
 
 import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
 import Unauthorized from './pages/Unauthorized';
 import GestionPersonnels from './pages/GestionPersonnels';
 import StructureManagement from './pages/StructureManagement';
@@ -17,6 +16,7 @@ import HolidaysManagement from './pages/HolidaysManagement';
 import AdminUsers from './pages/admin/AdminUsers';
 import Profile from './pages/profile/Profile';
 import RolePermissions from './pages/admin/RolePermissions';
+import DemandeConge from './pages/Employe/DemandeConge';
 
 const ProtectedRoute = ({ children, roles }) => {
     const { user } = useAuth();
@@ -48,7 +48,12 @@ const AppRoutes = () => {
                     </ProtectedRoute>
                 } />
 
-                {/* Employé ou Manager */}                                          
+                {/* Employé ou Manager */} 
+                <Route path="/demande-conge" element={
+                    <ProtectedRoute roles={['Employe', 'Manager']}>
+                        <DemandeConge />
+                    </ProtectedRoute>                    
+                } />                                         
 
                 {/* Admin only */}
                 <Route path="/admin/users" element={
@@ -60,12 +65,7 @@ const AppRoutes = () => {
                     <ProtectedRoute roles={['Admin']}>
                         <RolePermissions />
                     </ProtectedRoute>
-                } />
-                <Route path="/register" element={
-                    <ProtectedRoute roles={['Admin']}>
-                        <RegisterPage />
-                    </ProtectedRoute>
-                } />             
+                } />                          
 
                 {/* RH only */}
                 <Route path="/rh" element={

@@ -169,6 +169,18 @@ Route::middleware('auth:sanctum')->group(function () {
             ->middleware('permission:leaves.reject');
     });
 
+    //Employé - Gestion de ses congés
+    Route::prefix('me')->group(function () {
+        Route::middleware(['auth:sanctum', 'permission:employee.leaves.view'])
+            ->get('/conges', [LeaveController::class, 'mesConges']);
+
+        Route::middleware(['auth:sanctum', 'permission:employee.leaves.create'])
+            ->post('/conges', [LeaveController::class, 'storeEmploye']);
+
+        Route::middleware(['auth:sanctum', 'permission:employee.soldes.view'])
+            ->get('/soldes', [LeaveController::class, 'mesSoldes']);
+    });
+
     /*
     |--------------------------------------------------------------------------
     | DASHBOARD & AUDIT RH
@@ -326,6 +338,25 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/users/test',        [AdminController::class, 'createTestUser']);
             Route::post('/users/test-rh',     [AdminController::class, 'createTestRHUser']);
             Route::delete('/users/reset-tests',[AdminController::class, 'resetTestUsers']);
+            Route::get('/personnels-disponibles',[AdminController::class, 'personnelsDisponibles']);
+
         });
 
+    Route::post('/admin/users/generate-missing', [AdminController::class, 'generateMissing'])
+    ->middleware(['auth:sanctum', 'permission:users.manage']);
+
+    Route::post('/change-password', function (Request $request) {
+
+        $request->validate([
+            'password' => 'required|min:6|confirmed'
+        ]);
+
+        $user = auth()->user();
+        $user->password = Hash::make($request->password);
+        $user->must_change_password = false;
+        $user->save();
+
+        return response()->json(['message' => 'Mot de passe changé']);
+    })->middleware('auth:sanctum');
+    
 });

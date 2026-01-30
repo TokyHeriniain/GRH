@@ -39,8 +39,9 @@ class User extends Authenticatable
     }
     public function personnel()
     {
-        return $this->hasOne(Personnel::class);
-    }
+        return $this->belongsTo(Personnel::class);
+    }   
+
     public function permissions()
     {
         return $this->roles()

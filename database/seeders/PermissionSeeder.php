@@ -118,6 +118,18 @@ class PermissionSeeder extends Seeder
             ['name' => 'roles.view',         'module' => 'roles', 'action' => 'view'],
             ['name' => 'roles.update',       'module' => 'roles', 'action' => 'update'],
             ['name' => 'permissions.manage', 'module' => 'permissions', 'action' => 'manage'],
+
+            /*
+            |--------------------------------------------------------------------------
+            | ESPACE EMPLOYÉ
+            |--------------------------------------------------------------------------
+            */
+            ['name' => 'employee.dashboard', 'module' => 'employee', 'action' => 'dashboard'],
+            ['name' => 'employee.leaves.view', 'module' => 'employee', 'action' => 'view'],
+            ['name' => 'employee.leaves.create', 'module' => 'employee', 'action' => 'create'],
+            ['name' => 'employee.leaves.cancel', 'module' => 'employee', 'action' => 'cancel'],
+            ['name' => 'employee.soldes.view', 'module' => 'employee', 'action' => 'soldes'],
+
         ];
 
         foreach ($permissions as $permission) {

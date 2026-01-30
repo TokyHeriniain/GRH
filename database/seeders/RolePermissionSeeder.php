@@ -91,6 +91,11 @@ class RolePermissionSeeder extends Seeder
                     // Soldes & historiques
                     'soldes.view',
                     'conges.historique.view',
+                    // espace employé
+                    'employee.dashboard',
+                    'employee.leaves.view',
+                    'employee.soldes.view',
+
 
                 ])->pluck('id')
             );
@@ -105,16 +110,15 @@ class RolePermissionSeeder extends Seeder
             $employe->permissions()->sync(
                 Permission::whereIn('name', [
 
-                    // Profil
                     'profile.view',
                     'profile.update',
 
-                    // Congés
-                    'leaves.view',
-                    'leaves.create',
-
-                    // Soldes
-                    'soldes.view',
+                    // espace employé
+                    'employee.dashboard',
+                    'employee.leaves.view',
+                    'employee.leaves.create',
+                    'employee.leaves.cancel',
+                    'employee.soldes.view',
 
                 ])->pluck('id')
             );

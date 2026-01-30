@@ -160,14 +160,8 @@ const LoginPage = () => {
 
                 <div className="text-center mt-3">
                   <small style={{ color: "#8A0000" }}>
-                    Pas encore inscrit ?{" "}
-                    <Link
-                      to="/register"
-                      className="fw-bold"
-                      style={{ color: "#D7000F" }}
-                    >
-                      Créer un compte
-                    </Link>
+                    Pas encore inscrit ?{" "} 
+                    Veuillez contacter l'administrateur.                   
                   </small>
                 </div>
               </Form>

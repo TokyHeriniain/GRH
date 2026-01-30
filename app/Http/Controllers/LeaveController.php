@@ -146,6 +146,30 @@ class LeaveController extends Controller
         return $request->preview
             ? $pdf->stream('apercu_historique_conges.pdf')
             : $pdf->download('historique_conges_' . now()->format('Ymd_His') . '.pdf');
-    }    
+    }   
+    
+    //Employe congé
+    public function mesConges(Request $request)
+    {
+        return Leave::where('personnel_id', auth()->user()->personnel_id)
+            ->latest()
+            ->paginate(10);
+    }
 
+    public function storeEmploye(Request $request)
+    {
+        $data = $request->validate([
+            'leave_type_id' => 'required|exists:leave_types,id',
+            'date_debut' => 'required|date',
+            'date_fin' => 'required|date',
+            'heure_debut' => 'required',
+            'heure_fin' => 'required',
+            'raison' => 'nullable|string',
+        ]);
+
+        $data['personnel_id'] = auth()->user()->personnel_id;
+        $data['status'] = 'en_attente';
+
+        return Leave::create($data);
+    }
 }

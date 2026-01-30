@@ -113,22 +113,7 @@ export default function GestionPersonnelsModern() {
   const [total, setTotal] = useState(0);
 
 
-  /* ---------- fetch structures ---------- */
-  const fetchStructures = useCallback(async () => {
-    try {
-      const [d, s, f] = await Promise.all([
-        api.get("/api/directions"),
-        api.get("/api/services"),
-        api.get("/api/fonctions"),
-      ]);
-      setDirections(d.data.data || []);
-      setServices(s.data.data || []);
-      setFonctions(f.data.data || []);
-    } catch (e) {
-      console.error(e);
-      toastError("Impossible de charger les structures");
-    }
-  }, []);
+  
 
   /* ---------- fetch personnels (server-side pagination + search) ---------- */
   const fetchPersonnels = useCallback(
@@ -161,17 +146,16 @@ export default function GestionPersonnelsModern() {
   },
   [debouncedQ, filterDirection, filterService, perPage]
 );
-
-
-  useEffect(() => {
-    fetchStructures();
-  }, [fetchStructures]);
-
+  
   // debounce q
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q.trim()), DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [q]);
+  /* ---------- options helpers ---------- */
+  const directionOptions = useMemo(() => directions.map((d) => ({ label: d.nom, value: d.id })), [directions]);
+  const serviceOptions = useMemo(() => services.map((s) => ({ label: s.nom, value: s.id, direction_id: s.direction_id })), [services]);
+  const fonctionOptions = useMemo(() => fonctions.map((f) => ({ label: f.nom, value: f.id, service_id: f.service_id })), [fonctions]);
 
   // reload when filters/pagination change
   // 🔥 relance automatique de la recherche quand debouncedQ change
@@ -179,6 +163,40 @@ export default function GestionPersonnelsModern() {
   useEffect(() => {
     fetchPersonnels(1);
   }, [debouncedQ, filterDirection, filterService]);
+  /* ---------- LOAD REFERENTIELS ---------- */
+  useEffect(() => {
+    const loadReferentiels = async () => {
+      try {
+        const [dirRes, srvRes, fctRes] = await Promise.all([
+          api.get("/api/directions"),
+          api.get("/api/services"),
+          api.get("/api/fonctions"),
+        ]);
+
+        const dirs = Array.isArray(dirRes.data)
+          ? dirRes.data
+          : dirRes.data?.data || [];
+
+        const srvs = Array.isArray(srvRes.data)
+          ? srvRes.data
+          : srvRes.data?.data || [];
+
+        const fcts = Array.isArray(fctRes.data)
+          ? fctRes.data
+          : fctRes.data?.data || [];
+
+        setDirections(dirs);
+        setServices(srvs);
+        setFonctions(fcts);
+      } catch (err) {
+        console.error("Erreur chargement référentiels", err);
+        toastError("Erreur chargement directions/services");
+      }
+    };
+
+    loadReferentiels();
+  }, []);
+
 
 
   /* ---------- sorting client-side ---------- */
@@ -406,11 +424,7 @@ export default function GestionPersonnelsModern() {
     }
   };
 
-  /* ---------- options helpers ---------- */
-  const directionOptions = useMemo(() => directions.map((d) => ({ label: d.nom, value: d.id })), [directions]);
-  const serviceOptions = useMemo(() => services.map((s) => ({ label: s.nom, value: s.id, direction_id: s.direction_id })), [services]);
-  const fonctionOptions = useMemo(() => fonctions.map((f) => ({ label: f.nom, value: f.id, service_id: f.service_id })), [fonctions]);
-
+  
   /* ---------- small UI helpers ---------- */
   const getSortArrow = (k) => (sortConfig.key === k ? (sortConfig.direction === "asc" ? " ▲" : " ▼") : "");
 

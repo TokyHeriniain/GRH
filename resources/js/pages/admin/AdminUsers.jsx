@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import api from "axios";
+import api from "../../axios";
 import {
   Card,
   Table,
@@ -14,6 +14,7 @@ import {
 } from "react-bootstrap";
 import { toast } from "react-toastify";
 import NavigationLayout from "../../components/NavigationLayout";
+import Select from "react-select";
 
 const ROLE_VARIANTS = {
   Admin: "danger",
@@ -31,16 +32,42 @@ export default function AdminUsers() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [authUserId, setAuthUserId] = useState(null);
+  const [personnels, setPersonnels] = useState([]);
+  const [loadingPersonnels, setLoadingPersonnels] = useState(false);
+
 
   // Modal création / modification utilisateur
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null); // null = création
   const [formUser, setFormUser] = useState({
-    name: "",
+    personnel: null,
     email: "",
     role: "Employe",
     password: "",
   });
+
+  useEffect(() => {
+    const fetchPersonnels = async () => {
+      setLoadingPersonnels(true);
+      try {
+        const res = await api.get("/api/admin/personnels-disponibles");
+
+        const options = res.data.map((p) => ({
+          value: p.id,
+          label: `${p.matricule} — ${p.nom} ${p.prenom}`,
+          raw: p,
+        }));
+
+        setPersonnels(options);
+      } catch {
+        toast.error("Erreur chargement personnels");
+      } finally {
+        setLoadingPersonnels(false);
+      }
+    };
+
+    fetchPersonnels();
+  }, []);
 
   useEffect(() => {
     // Récupérer l'utilisateur connecté
@@ -134,43 +161,82 @@ export default function AdminUsers() {
     if (user) {
       setEditingUser(user);
       setFormUser({
-        name: user.name,
+        personnel: null, // pas modifiable en édition
         email: user.email,
         role: user.role?.name || "Employe",
         password: "",
       });
     } else {
       setEditingUser(null);
-      setFormUser({ name: "", email: "", role: "Employe", password: "" });
+      setFormUser({
+        personnel: null,
+        email: "",
+        role: "Employe",
+        password: "",
+      });
     }
     setShowModal(true);
   };
 
+
   const handleSaveUser = async () => {
-    if (!formUser.name || !formUser.email || (!editingUser && !formUser.password)) {
-      toast.error("Tous les champs obligatoires");
+    if (!editingUser && !formUser.personnel) {
+      toast.error("Sélectionnez un personnel");
       return;
     }
+
+    if (!formUser.email || (!editingUser && !formUser.password)) {
+      toast.error("Champs obligatoires manquants");
+      return;
+    }
+
     try {
+      const payload = {
+        personnel_id: formUser.personnel?.value,
+        email: formUser.email,
+        role: formUser.role,
+        password: formUser.password || undefined,
+      };
+
       if (editingUser) {
-        await api.put(`/api/admin/users/${editingUser.id}`, formUser);
+        await api.put(`/api/admin/users/${editingUser.id}`, payload);
         toast.success("Utilisateur modifié");
       } else {
-        await api.post("/api/admin/users", formUser);
+        await api.post("/api/admin/users", payload);
         toast.success("Utilisateur créé");
       }
+
       setShowModal(false);
       fetchUsers(1);
     } catch (e) {
       toast.error(e.response?.data?.message || "Erreur utilisateur");
     }
   };
+
   // ---------------- RESET FILTRES ----------------
   const resetFilters = () => {
     setSearch("");
     setRoleFilter("");
     fetchUsers(1);
   };
+
+  // ---------------- GENERATE MISSING USERS ----------------
+  const generateMissingUsers = async () => {
+    if (!window.confirm("Créer les comptes pour tous les personnels sans utilisateur ?")) return;
+
+    try {
+      const res = await api.post("/api/admin/users/generate-missing");
+
+      toast.success(res.data.message);
+
+      console.table(res.data.accounts); // utile debug
+
+      fetchUsers(1);
+    } catch {
+      toast.error("Erreur génération comptes");
+    }
+  };
+
   return (
     <NavigationLayout>
       <Card className="shadow-sm border-0 p-4">
@@ -207,6 +273,13 @@ export default function AdminUsers() {
             <Button variant="outline-success" size="sm" onClick={() => openModal()}>
               ➕ Créer utilisateur
             </Button>
+            <Button
+              variant="outline-dark"
+              size="sm"
+              onClick={generateMissingUsers}
+            >
+              ⚡ Générer comptes manquants
+            </Button>
             <Button variant="outline-danger" size="sm" onClick={resetTestUsers}>
               ♻ Reset tests
             </Button>
@@ -226,7 +299,7 @@ export default function AdminUsers() {
             <thead className="table-light">
               <tr>
                 <th>#</th>
-                <th>Nom</th>
+                <th>Personnel</th>
                 <th>Email</th>
                 <th>Rôle</th>
                 <th className="text-center">Actions</th>
@@ -239,7 +312,7 @@ export default function AdminUsers() {
                 users.map((u) => (
                   <tr key={u.id}>
                     <td>{u.id}</td>
-                    <td>{u.name}</td>
+                    <td>{u.personnel?.matricule} — {u.personnel?.nom}</td>
                     <td>{u.email}</td>
                     <td>
                       <Badge bg={ROLE_VARIANTS[u.role?.name] || "secondary"}>
@@ -294,8 +367,15 @@ export default function AdminUsers() {
           <Modal.Body>
             <Form>
               <Form.Group className="mb-2">
-                <Form.Label>Nom</Form.Label>
-                <Form.Control value={formUser.name} onChange={(e) => setFormUser({...formUser, name: e.target.value})} />
+                <Form.Label>Personnel</Form.Label>
+                <Select
+                  isDisabled={editingUser}
+                  isLoading={loadingPersonnels}
+                  options={personnels}
+                  value={formUser.personnel}
+                  onChange={(v) => setFormUser({ ...formUser, personnel: v })}
+                  placeholder="Sélectionner un personnel"
+                />
               </Form.Group>
               <Form.Group className="mb-2">
                 <Form.Label>Email</Form.Label>

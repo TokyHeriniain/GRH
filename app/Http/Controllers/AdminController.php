@@ -8,6 +8,8 @@ use App\Models\Role;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Hash;
 use App\Models\Permission;
+use App\Models\Personnel;
+use Illuminate\Support\Str;
 
 
 class AdminController extends Controller
@@ -19,7 +21,7 @@ class AdminController extends Controller
         $search  = $request->input('search', null);
         $role    = $request->input('role', null);
 
-        $query = User::with('role');
+        $query = User::with('role', 'personnel');
 
         if ($search) {
             $query->where(function($q) use ($search) {
@@ -43,29 +45,34 @@ class AdminController extends Controller
     public function storeUser(Request $request)
     {
         $validated = $request->validate([
-            'name'     => 'required|string|max:255',
-            'email'    => 'required|email|unique:users,email',
-            'role'     => ['required', Rule::in(['Admin','Manager','Employe','RH'])],
+            'personnel_id' => 'required|exists:personnels,id|unique:users,personnel_id',
+            'email' => 'required|email|unique:users,email',
+            'role' => ['required', Rule::in(['Admin','Manager','Employe','RH'])],
             'password' => 'required|string|min:6',
         ]);
 
+        $personnel = Personnel::findOrFail($validated['personnel_id']);
         $role = Role::where('name', $validated['role'])->firstOrFail();
 
         $user = User::create([
-            'name'    => $validated['name'],
-            'email'   => $validated['email'],
+            'name' => $personnel->nom . ' ' . $personnel->prenom,
+            'email' => $validated['email'],
+            'password' => Hash::make($validated['password']),
             'role_id' => $role->id,
-            'password'=> Hash::make($validated['password']),
+            'personnel_id' => $personnel->id,
         ]);
 
-        return response()->json(['message' => 'Utilisateur créé', 'user' => $user], 201);
+        return response()->json([
+            'message' => 'Utilisateur créé',
+            'user' => $user->load('personnel')
+        ], 201);
     }
+
 
     // 🔹 Modifier un utilisateur existant
     public function updateUser(Request $request, User $user)
     {
         $validated = $request->validate([
-            'name'     => 'required|string|max:255',
             'email'    => ['required','email', Rule::unique('users','email')->ignore($user->id)],
             'role'     => ['required', Rule::in(['Admin','Manager','Employe','RH'])],
             'password' => 'nullable|string|min:6',
@@ -77,7 +84,6 @@ class AdminController extends Controller
 
         $role = Role::where('name', $validated['role'])->firstOrFail();
 
-        $user->name = $validated['name'];
         $user->email = $validated['email'];
         $user->role_id = $role->id;
 
@@ -191,4 +197,41 @@ class AdminController extends Controller
 
         return response()->json(['message' => 'Permissions mises à jour']);
     }
+
+    public function personnelsDisponibles()
+    {
+        $personnels = Personnel::whereDoesntHave('user')
+            ->orderBy('nom')
+            ->get();
+
+        return response()->json($personnels);
+    }
+    //creation des comptes manquants pour les personnels sans compte utilisateur
+    public function generateMissing()
+    {
+        set_time_limit(0);
+
+        $role = Role::where('name', 'Employe')->firstOrFail();
+
+        Personnel::whereDoesntHave('user')
+            ->chunk(100, function ($personnels) use ($role) {
+
+                foreach ($personnels as $p) {
+
+                    User::create([
+                        'name' => $p->nom . ' ' . $p->prenom,
+                        'email' => strtolower($p->matricule) . '@entreprise.local',
+                        'personnel_id' => $p->id,
+                        'role_id' => $role->id,
+                        'password' => Hash::make($p->matricule), // mot de passe par défaut
+                        'must_change_password' => true,
+                    ]);
+                }
+            });
+
+        return response()->json(['message' => 'Comptes créés']);
+    }
+
+
+
 }
