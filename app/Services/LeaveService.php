@@ -106,6 +106,24 @@ class LeaveService
     }
 
     /* =========================================================
+     | DELETE
+     ========================================================= */
+    public function delete(Leave $leave): void
+    {
+        $this->closure->isClosed(Carbon::parse($leave->date_debut)->year);
+
+        $this->audit->log(
+            'delete_leave',
+            $leave->personnel_id,
+            $leave->id,
+            $leave->toArray(),
+            []
+        );
+
+        $leave->delete();
+    }
+
+    /* =========================================================
      | VALIDATION RH
      ========================================================= */
     public function validateRH(Leave $leave, int $userId): Leave

@@ -17,6 +17,8 @@ import AdminUsers from './pages/admin/AdminUsers';
 import Profile from './pages/profile/Profile';
 import RolePermissions from './pages/admin/RolePermissions';
 import DemandeConge from './pages/Employe/DemandeConge';
+import ChangePassword from './pages/Auth/ChangePassword';
+import EmployeConge from './pages/Employe/EmployeConge';
 
 const ProtectedRoute = ({ children, roles }) => {
     const { user } = useAuth();
@@ -36,6 +38,7 @@ const AppRoutes = () => {
             <Routes>
                 {/* Public routes */}
                 <Route path="/login" element={!user ? <LoginPage /> : <Navigate to="/dashboard" />} />
+                <Route path="/change-password" element={<ChangePassword />} />
                 <Route path="/dashboard" element={
                     <ProtectedRoute roles={['Admin', 'RH']}>
                         <DashboardRH />
@@ -46,14 +49,20 @@ const AppRoutes = () => {
                     <ProtectedRoute>
                         <Profile />
                     </ProtectedRoute>
-                } />
+                } />               
+
 
                 {/* Employé ou Manager */} 
                 <Route path="/demande-conge" element={
-                    <ProtectedRoute roles={['Employe', 'Manager']}>
+                    <ProtectedRoute roles={['Employe', 'Manager', 'Admin', 'RH']}>
                         <DemandeConge />
                     </ProtectedRoute>                    
-                } />                                         
+                } />    
+                <Route path="/mes-conges" element={
+                    <ProtectedRoute roles={['Employe', 'Manager', 'Admin', 'RH']}>
+                        <EmployeConge/>
+                    </ProtectedRoute>                    
+                } />                                      
 
                 {/* Admin only */}
                 <Route path="/admin/users" element={

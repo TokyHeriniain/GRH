@@ -95,4 +95,18 @@ class AuthController extends Controller
     {
         return response()->json($request->user()?->load('role'));
     }
+    public function changePassword(Request $request)
+    {
+        $request->validate([
+            'password' => 'required|min:6'
+        ]);
+
+        $user = $request->user();
+        $user->password = Hash::make($request->password);
+        $user->must_change_password = false;
+        $user->save();
+
+        return response()->json(['message' => 'Mot de passe changé']);
+    }
+
 }

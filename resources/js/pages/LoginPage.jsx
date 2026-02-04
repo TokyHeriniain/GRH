@@ -8,24 +8,40 @@ import {
   Button,
   InputGroup,
 } from "react-bootstrap";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import toast from "react-hot-toast";
 
 const LoginPage = () => {
   const { login } = useAuth();
+  const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+
     try {
-      await login(email, password);
+      const response = await login(email, password);
+
+      // 👉 Si première connexion → forcer changement mot de passe
+      if (response?.must_change_password) {
+        toast("Veuillez changer votre mot de passe 🔐", { icon: "⚠️" });
+        navigate("/change-password");
+        return;
+      }
+
       toast.success("Connexion réussie 🎉");
-    } catch {
+      navigate("/dashboard"); // ou employe/dashboard
+
+    } catch (error) {
       toast.error("Identifiants incorrects ❌");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -34,7 +50,7 @@ const LoginPage = () => {
       <Container fluid className="h-100 g-0">
         <Row className="h-100 g-0">
 
-          {/* LEFT COLUMN — CORPORATE IMAGE */}
+          {/* LEFT COLUMN */}
           <Col
             md={6}
             className="d-none d-md-block position-relative"
@@ -45,7 +61,6 @@ const LoginPage = () => {
               minHeight: "100vh",
             }}
           >
-            {/* Dark red overlay */}
             <div
               style={{
                 position: "absolute",
@@ -55,7 +70,6 @@ const LoginPage = () => {
               }}
             />
 
-            {/* Branding Text */}
             <div
               className="position-absolute text-white px-5"
               style={{ bottom: "50px" }}
@@ -72,7 +86,7 @@ const LoginPage = () => {
             </div>
           </Col>
 
-          {/* RIGHT COLUMN — FORM */}
+          {/* RIGHT COLUMN */}
           <Col
             md={6}
             className="d-flex justify-content-center align-items-center px-4"
@@ -97,7 +111,6 @@ const LoginPage = () => {
               </div>
 
               <Form onSubmit={handleSubmit}>
-                {/* Email */}
                 <Form.Group className="mb-3">
                   <Form.Label className="fw-semibold" style={{ color: "#8A0000" }}>
                     Adresse email
@@ -109,6 +122,7 @@ const LoginPage = () => {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     size="lg"
+                    disabled={loading}
                     style={{
                       borderRadius: "10px",
                       borderColor: "#D7000F",
@@ -116,7 +130,6 @@ const LoginPage = () => {
                   />
                 </Form.Group>
 
-                {/* Password */}
                 <Form.Group className="mb-3">
                   <Form.Label className="fw-semibold" style={{ color: "#8A0000" }}>
                     Mot de passe
@@ -129,6 +142,7 @@ const LoginPage = () => {
                       onChange={(e) => setPassword(e.target.value)}
                       required
                       size="lg"
+                      disabled={loading}
                       style={{
                         borderRadius: "10px",
                         borderColor: "#D7000F",
@@ -137,17 +151,18 @@ const LoginPage = () => {
                     <Button
                       variant="outline-secondary"
                       onClick={() => setShowPassword(!showPassword)}
+                      disabled={loading}
                     >
                       {showPassword ? "Masquer" : "Afficher"}
                     </Button>
                   </InputGroup>
                 </Form.Group>
 
-                {/* Button */}
                 <Button
                   type="submit"
                   className="w-100 py-2 mt-2"
                   size="lg"
+                  disabled={loading}
                   style={{
                     backgroundColor: "#D7000F",
                     borderColor: "#D7000F",
@@ -155,13 +170,12 @@ const LoginPage = () => {
                     fontWeight: "600",
                   }}
                 >
-                  Se connecter
+                  {loading ? "Connexion..." : "Se connecter"}
                 </Button>
 
                 <div className="text-center mt-3">
                   <small style={{ color: "#8A0000" }}>
-                    Pas encore inscrit ?{" "} 
-                    Veuillez contacter l'administrateur.                   
+                    Pas encore inscrit ? Veuillez contacter l'administrateur.
                   </small>
                 </div>
               </Form>

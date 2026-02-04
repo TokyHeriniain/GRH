@@ -226,16 +226,13 @@ export default function AdminUsers() {
 
     try {
       const res = await api.post("/api/admin/users/generate-missing");
-
       toast.success(res.data.message);
-
-      console.table(res.data.accounts); // utile debug
-
       fetchUsers(1);
     } catch {
       toast.error("Erreur génération comptes");
     }
   };
+
 
   return (
     <NavigationLayout>

@@ -14,6 +14,12 @@ use Illuminate\Support\Str;
 
 class AdminController extends Controller
 {
+    public function __construct()
+    {
+        // 🔐 protection permissions
+        $this->middleware('permission:users.manage')->except(['index', 'personnelsDisponibles']);
+        $this->middleware('permission:users.view')->only(['index']);
+    }
     // 🔹 Liste paginée des utilisateurs avec recherche et filtre rôle
     public function listUsers(Request $request)
     {
@@ -45,29 +51,35 @@ class AdminController extends Controller
     public function storeUser(Request $request)
     {
         $validated = $request->validate([
-            'personnel_id' => 'required|exists:personnels,id|unique:users,personnel_id',
-            'email' => 'required|email|unique:users,email',
+            'personnel_id' => [
+                'required',
+                'exists:personnels,id',
+                Rule::unique('users', 'personnel_id'),
+            ],
+            'email' => ['required', 'email', 'unique:users,email'],
             'role' => ['required', Rule::in(['Admin','Manager','Employe','RH'])],
-            'password' => 'required|string|min:6',
+            'password' => ['required', 'string', 'min:6'],
         ]);
 
+        // 🔒 Récupération sécurisée du personnel
         $personnel = Personnel::findOrFail($validated['personnel_id']);
+
         $role = Role::where('name', $validated['role'])->firstOrFail();
 
         $user = User::create([
-            'name' => $personnel->nom . ' ' . $personnel->prenom,
+            'name' => trim($personnel->nom . ' ' . $personnel->prenom),
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'role_id' => $role->id,
             'personnel_id' => $personnel->id,
+            'must_change_password' => true, // ✅ recommandé
         ]);
 
         return response()->json([
-            'message' => 'Utilisateur créé',
-            'user' => $user->load('personnel')
+            'message' => 'Utilisateur créé avec succès',
+            'user' => $user->load('personnel', 'role')
         ], 201);
     }
-
 
     // 🔹 Modifier un utilisateur existant
     public function updateUser(Request $request, User $user)
@@ -213,25 +225,35 @@ class AdminController extends Controller
 
         $role = Role::where('name', 'Employe')->firstOrFail();
 
+        $count = 0;
+
         Personnel::whereDoesntHave('user')
-            ->chunk(100, function ($personnels) use ($role) {
+            ->chunk(100, function ($personnels) use ($role, &$count) {
 
                 foreach ($personnels as $p) {
 
+                    $safeMatricule = preg_replace('/[^a-zA-Z0-9]/', '', $p->matricule);
+                    $email = strtolower($safeMatricule) . '@entreprise.local';
+
                     User::create([
                         'name' => $p->nom . ' ' . $p->prenom,
-                        'email' => strtolower($p->matricule) . '@entreprise.local',
-                        'personnel_id' => $p->id,
+                        'email' => $email,
+
+                        // ✅ hash Laravel sécurisé
+                        'password' => Hash::make($p->matricule),
+
                         'role_id' => $role->id,
-                        'password' => Hash::make($p->matricule), // mot de passe par défaut
+                        'personnel_id' => $p->id,
                         'must_change_password' => true,
                     ]);
+
+                    $count++;
                 }
             });
 
-        return response()->json(['message' => 'Comptes créés']);
+        return response()->json([
+            'message' => "$count comptes créés avec succès"
+        ]);
     }
-
-
 
 }

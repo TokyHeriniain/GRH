@@ -1,108 +1,242 @@
 import React, { useEffect, useState } from "react";
+import { Button, Card, Col, Form, InputGroup, Row, Alert } from "react-bootstrap";
+import AsyncSelect from "react-select/async";
 import api from "../../axios";
-import { Form, Button, Card, Alert, Nav } from "react-bootstrap";
 import NavigationLayout from "../../components/NavigationLayout";
 
 export default function DemandeConge() {
-  const [types, setTypes] = useState([]);
-  const [soldes, setSoldes] = useState([]);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+  const [joursUtilises, setJoursUtilises] = useState(0);
+  const [selectedLeaveType, setSelectedLeaveType] = useState(null);
+
   const [form, setForm] = useState({
     leave_type_id: "",
     date_debut: "",
     date_fin: "",
     heure_debut: "08:00",
-    heure_fin: "17:00",
+    heure_fin: "17:30",
     raison: "",
   });
 
-  const [message, setMessage] = useState(null);
+  /* ================= CALCUL DES JOURS ================= */
+  const calculateJours = (dateDebut, dateFin, heureDebut, heureFin) => {
+    if (!dateDebut || !dateFin || !heureDebut || !heureFin) return 0;
 
-  useEffect(() => {
-    loadData();
-  }, []);
+    const startDate = new Date(dateDebut);
+    const endDate = new Date(dateFin);
+    if (endDate < startDate) return 0;
 
-  const loadData = async () => {
-    const [typesRes, soldesRes] = await Promise.all([
-      api.get("/api/leave-types-search"),
-      api.get("/api/me/soldes"),
-    ]);
+    // 🔹 CAS 1 : UNE SEULE JOURNÉE → calcul horaire
+    if (dateDebut === dateFin) {
+      const start = new Date(`${dateDebut}T${heureDebut}`);
+      const end = new Date(`${dateFin}T${heureFin}`);
+      if (end <= start) return 0;
 
-    setTypes(typesRes.data || []);
-    setSoldes(soldesRes.data || []);
+      let hours = (end - start) / 3600000;
+
+      // Pause déjeuner 12h00–13h30
+      const pauseStart = new Date(`${dateDebut}T12:00`);
+      const pauseEnd = new Date(`${dateDebut}T13:30`);
+      if (start < pauseEnd && end > pauseStart) {
+        hours -=
+          (Math.min(end, pauseEnd) - Math.max(start, pauseStart)) / 3600000;
+      }
+
+      return Math.round((hours / 8) * 100) / 100;
+    }
+
+    // 🔹 CAS 2 : MULTI-JOURS → 1 jour = 1
+    const diffDays =
+      Math.floor((endDate - startDate) / 86400000) + 1;
+
+    return diffDays;
   };
 
-  const submit = async (e) => {
+  useEffect(() => {
+    setJoursUtilises(
+      calculateJours(
+        form.date_debut,
+        form.date_fin,
+        form.heure_debut,
+        form.heure_fin
+      )
+    );
+  }, [form.date_debut, form.date_fin, form.heure_debut, form.heure_fin]);
+
+  /* ================= VALIDATION ================= */
+  const validateForm = () => {
+    if (!form.leave_type_id) return "Le type de congé est obligatoire.";
+    if (!form.date_debut || !form.date_fin)
+      return "Les dates de début et fin sont obligatoires.";
+    if (joursUtilises <= 0)
+      return "La durée du congé est invalide (0 jour calculé).";
+    return null;
+  };
+
+  /* ================= ASYNC LEAVE TYPES ================= */
+  const loadLeaveTypes = async (q) => {
+    const res = await api.get(`/api/leave-types-search?q=${q || ""}`);
+    return res.data.map((t) => ({
+      value: t.id,
+      label: t.nom,
+    }));
+  };
+
+  /* ================= SUBMIT ================= */
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    try {
-      await api.post("/api/me/conges", form);
-      setMessage("Demande envoyée avec succès ✅");
-    } catch (err) {
-      setMessage("Erreur lors de la demande ❌");
+    setError(null);
+    setSuccess(null);
+
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
+      return;
     }
+
+    const payload = {
+      ...form,
+      jours_utilises: joursUtilises,
+    };
+
+    try {
+      await api.post("/api/me/conges", payload);
+      setSuccess("✅ Demande de congé envoyée avec succès");
+
+      handleReset();
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+          "Erreur lors de l'envoi de la demande"
+      );
+    }
+  };
+
+  /* ================= RESET ================= */
+  const handleReset = () => {
+    setSelectedLeaveType(null);
+    setJoursUtilises(0);
+    setForm({
+      leave_type_id: "",
+      date_debut: "",
+      date_fin: "",
+      heure_debut: "08:00",
+      heure_fin: "17:30",
+      raison: "",
+    });
   };
 
   return (
     <NavigationLayout>
-    <Card className="p-4 shadow-sm">
-      <h5>Nouvelle demande de congé</h5>
+      <Card className="p-4 shadow-sm border-0">
+        <h5>📄 Nouvelle demande de congé</h5>
 
-      {message && <Alert>{message}</Alert>}
+        <Alert variant="info">
+          ℹ️ Journée de travail : <strong>8h</strong> — Pause{" "}
+          <strong>12h00–13h30</strong> — Week-ends inclus
+        </Alert>
 
-      <Form onSubmit={submit}>
-        <Form.Select
-          value={form.leave_type_id}
-          onChange={(e) =>
-            setForm({ ...form, leave_type_id: e.target.value })
-          }
-        >
-          <option value="">Type de congé</option>
-          {types.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.nom}
-            </option>
-          ))}
-        </Form.Select>
+        {joursUtilises === 0 &&
+          form.date_debut &&
+          form.date_fin && (
+            <Alert variant="danger">
+              ⚠ La durée calculée est nulle. Vérifiez les dates/heures.
+            </Alert>
+          )}
 
-        <Form.Control
-          type="date"
-          value={form.date_debut}
-          onChange={(e) =>
-            setForm({ ...form, date_debut: e.target.value })
-          }
-        />
+        {error && <Alert variant="danger">{error}</Alert>}
+        {success && <Alert variant="success">{success}</Alert>}
 
-        <Form.Control
-          type="date"
-          value={form.date_fin}
-          onChange={(e) =>
-            setForm({ ...form, date_fin: e.target.value })
-          }
-        />
+        <Form onSubmit={handleSubmit}>
+          <Row className="g-3">
+            <Col md={6}>
+              <Form.Label>Type de congé</Form.Label>
+              <AsyncSelect
+                cacheOptions
+                defaultOptions
+                loadOptions={loadLeaveTypes}
+                value={selectedLeaveType}
+                onChange={(s) => {
+                  setSelectedLeaveType(s);
+                  setForm({ ...form, leave_type_id: s?.value || "" });
+                }}
+                isClearable
+              />
+            </Col>
 
-        <Form.Control
-          as="textarea"
-          placeholder="Raison"
-          value={form.raison}
-          onChange={(e) =>
-            setForm({ ...form, raison: e.target.value })
-          }
-        />
+            <Col md={6}>
+              <Form.Label>Jours utilisés</Form.Label>
+              <Form.Control value={joursUtilises} disabled />
+            </Col>
 
-        <Button className="mt-3" type="submit">
-          Envoyer la demande
-        </Button>
-      </Form>
+            <Col md={6}>
+              <Form.Label>Date & Heure début</Form.Label>
+              <InputGroup>
+                <Form.Control
+                  type="date"
+                  value={form.date_debut}
+                  onChange={(e) =>
+                    setForm({ ...form, date_debut: e.target.value })
+                  }
+                />
+                <Form.Control
+                  type="time"
+                  value={form.heure_debut}
+                  onChange={(e) =>
+                    setForm({ ...form, heure_debut: e.target.value })
+                  }
+                />
+              </InputGroup>
+            </Col>
 
-      <hr />
+            <Col md={6}>
+              <Form.Label>Date & Heure fin</Form.Label>
+              <InputGroup>
+                <Form.Control
+                  type="date"
+                  value={form.date_fin}
+                  onChange={(e) =>
+                    setForm({ ...form, date_fin: e.target.value })
+                  }
+                />
+                <Form.Control
+                  type="time"
+                  value={form.heure_fin}
+                  onChange={(e) =>
+                    setForm({ ...form, heure_fin: e.target.value })
+                  }
+                />
+              </InputGroup>
+            </Col>
 
-      <h6>Mes soldes</h6>
-      {soldes.map((s) => (
-        <div key={s.type}>
-          {s.type} : <b>{s.solde} jours</b>
-        </div>
-      ))}
-    </Card>
+            <Col md={12}>
+              <Form.Label>Raison</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={3}
+                value={form.raison}
+                onChange={(e) =>
+                  setForm({ ...form, raison: e.target.value })
+                }
+              />
+            </Col>
+
+            <Col md={12} className="d-flex gap-2">
+              <Button type="submit" className="w-100">
+                📤 Envoyer la demande
+              </Button>
+              <Button
+                variant="outline-secondary"
+                className="w-100"
+                onClick={handleReset}
+              >
+                🔄 Réinitialiser
+              </Button>
+            </Col>
+          </Row>
+        </Form>
+      </Card>
     </NavigationLayout>
-    
   );
 }
