@@ -93,11 +93,11 @@ const EmployeConge = () => {
 
         {error && <Alert variant="danger">{error}</Alert>}
 
-        {!loading && conges.length === 0 && (
+        {!loading && Array.isArray(conges) && conges.length === 0 && (
           <Alert variant="info">Aucune demande de congé trouvée.</Alert>
         )}
 
-        {!loading && conges.length > 0 && (
+        {!loading && Array.isArray(conges) && conges.length > 0 && (
           <>
             <Table striped bordered hover responsive>
               <thead className="table-light">

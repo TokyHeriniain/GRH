@@ -11,12 +11,12 @@ class RHSeeder extends Seeder
 {
     public function run()
     {
-        $role = Role::firstOrCreate(['name' => 'RH']);
+        $role = Role::firstOrCreate(['name' => 'Admin']);
 
         User::firstOrCreate(
-            ['email' => 'rh@example.com'],
+            ['email' => 'toky@nyhavana.mg'],
             [
-                'name' => 'RH Test',
+                'name' => 'Administrator',
                 'password' => Hash::make('password'),
                 'role_id' => $role->id,
             ]

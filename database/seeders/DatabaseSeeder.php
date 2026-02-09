@@ -18,10 +18,10 @@ class DatabaseSeeder extends Seeder
         }
 
         // Crée un admin s'il n'existe pas déjà
-        if (!User::where('email', 'admin@example.com')->exists()) {
+        if (!User::where('email', 'admin@nyhavana.mg')->exists()) {
             User::create([
                 'name' => 'Admin User',
-                'email' => 'admin@example.com',
+                'email' => 'admin@nyhavana.mg',
                 'password' => bcrypt('password'),
                 'role_id' => Role::where('name', 'Admin')->first()->id,
             ]);

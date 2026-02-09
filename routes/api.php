@@ -19,7 +19,8 @@ use App\Http\Controllers\{
     LeaveBalanceController,
     PersonnelSoldesController,
     LeaveExportController,
-    ProfileController
+    ProfileController,
+    LeaveCheckController
 };
 
 use App\Http\Controllers\Api\{
@@ -184,6 +185,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::middleware(['auth:sanctum', 'permission:employee.soldes.view'])
             ->get('/soldes', [LeaveController::class, 'soldesEmploye']);
+        Route::middleware(['auth:sanctum', 'permission:employee.soldes.view'])
+            ->get('/solde-global', [LeaveController::class, 'soldeGlobal']);
         Route::post('/conges/{leave}/annuler', [LeaveController::class, 'annulerEmploye']);
     });
 
@@ -348,6 +351,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/admin/users/generate-missing', [AdminController::class, 'generateMissing'])
     ->middleware(['auth:sanctum', 'permission:users.manage']);
 
+
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/leaves/check-solde', [LeaveCheckController::class, 'check']);
+    });
 
     
 });

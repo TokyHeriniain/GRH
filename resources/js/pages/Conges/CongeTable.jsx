@@ -6,7 +6,6 @@ import "./congeTable.css";
 /* ================= UTIL ================= */
 const fmt = (v) =>
   v !== null && v !== undefined ? Number(v).toFixed(2) : "--";
-
 /* ================= COMPONENT ================= */
 export default function CongeTable({
   leaves = [],
@@ -66,6 +65,7 @@ export default function CongeTable({
                 const isRemoving = removing.includes(leave.id);
                 const isEnAttente = leave.status === "en_attente";
                 const isLocked =
+                  //user.role?.name !== "Admin" ||
                   leave.status === "approuve_rh" ||
                   leave.status === "rejete" ||
                   leave.annee_cloturee;

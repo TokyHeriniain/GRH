@@ -110,18 +110,33 @@ class LeaveService
      ========================================================= */
     public function delete(Leave $leave): void
     {
-        $this->closure->isClosed(Carbon::parse($leave->date_debut)->year);
+        $annee = Carbon::parse($leave->date_debut)->year;
+
+        // 🔒 Année clôturée → interdiction
+        $this->closure->isClosed($annee);
+
+        $wasApprovedRH = $leave->status === 'approuve_rh';
+        $personnelId  = $leave->personnel_id;
 
         $this->audit->log(
             'delete_leave',
-            $leave->personnel_id,
+            $personnelId,
             $leave->id,
             $leave->toArray(),
             []
         );
 
         $leave->delete();
+
+        // 🔁 IMPORTANT : restituer les soldes uniquement si validé RH
+        if ($wasApprovedRH) {
+            $this->balances->recalculateForPersonnelAndType(
+                $personnelId,
+                $annee
+            );
+        }
     }
+
 
     /* =========================================================
      | VALIDATION RH
@@ -143,8 +158,9 @@ class LeaveService
             $soldeAvant = 0;
             $soldeApres = 0;
 
-            /* ================= CONGÉ EXCEPTIONNEL ================= */
+                        /* ================= CONGÉ EXCEPTIONNEL ================= */
             if ($type->est_exceptionnel) {
+
                 $dejaPris = $this->balances
                     ->getUsedExceptionalDays($leave->personnel_id, $type->id);
 
@@ -160,14 +176,29 @@ class LeaveService
                 $soldeApres = $soldeAvant - $leave->jours_utilises;
             }
 
-            /* ================= CONGÉ AVEC SOLDE ================= */
-            if ($type->avec_solde && !$type->est_exceptionnel) {
+            /* ================= CONGÉ AVEC SOLDE (ANNUEL + BILLET) ================= */
+            elseif ($type->avec_solde) {
+
                 $balance = LeaveBalance::where('personnel_id', $leave->personnel_id)
                     ->where('annee_reference', $annee)
                     ->firstOrFail();
 
-                $droitTotal = $balance->solde_annuel_jours;
-                $soldeAvant = $balance->solde_annuel_jours;
+                // 🔒 Quota billet / permission
+                if ($type->limite_jours !== null) {
+
+                    $dejaPris = Leave::where('personnel_id', $leave->personnel_id)
+                        ->where('leave_type_id', $type->id)
+                        ->where('status', 'approuve_rh')
+                        ->sum('jours_utilises');
+
+                    if (($dejaPris + $leave->jours_utilises) > $type->limite_jours) {
+                        throw new LogicException("Quota billet dépassé");
+                    }
+                }
+
+                // 🔵 Solde annuel partagé
+                $droitTotal = $balance->solde_global_jours;
+                $soldeAvant = $balance->solde_global_restant;
                 $soldeApres = $soldeAvant - $leave->jours_utilises;
 
                 if ($soldeApres < 0 && !$type->autorise_solde_negatif) {
@@ -175,6 +206,12 @@ class LeaveService
                 }
             }
 
+            /* ================= AUTRES TYPES (SANS SOLDE) ================= */
+            else {
+                $droitTotal = 0;
+                $soldeAvant = 0;
+                $soldeApres = 0;
+            }
             $leave->update([
                 'status' => 'approuve_rh',
                 'validated_by' => $userId,
@@ -275,4 +312,45 @@ class LeaveService
 
         return max($minutes / 60, 0);
     }
+
+    public function getDaysForLeave(array $data, LeaveType $type): float
+    {
+        return $this->calculateDays(
+            $data['date_debut'],
+            $data['date_fin'],
+            $data['heure_debut'],
+            $data['heure_fin'],
+            $type
+        );
+    }
+    /**
+     * Vérifie si le solde est suffisant pour un congé fictif
+     */
+    public function checkSoldeDisponibleForLeave(Leave $leave): void
+    {
+        $type = $leave->leaveType;
+
+        $annee = \Carbon\Carbon::parse($leave->date_debut)->year;
+
+        if ($type->est_exceptionnel) {
+            $dejaPris = $this->balances->getUsedExceptionalDays($leave->personnel_id, $type->id);
+
+            if ($type->limite_jours !== null && ($dejaPris + $leave->jours_utilises) > $type->limite_jours) {
+                throw new \LogicException("Quota exceptionnel dépassé");
+            }
+        }
+
+        if ($type->avec_solde && !$type->est_exceptionnel) {
+            $balance = \App\Models\LeaveBalance::where('personnel_id', $leave->personnel_id)
+                ->where('annee_reference', $annee)
+                ->firstOrFail();
+
+            $soldeApres = $balance->solde_global_restant - $leave->jours_utilises;
+
+            if ($soldeApres < 0 && !$type->autorise_solde_negatif) {
+                throw new \LogicException("Solde insuffisant");
+            }
+        }
+    }
+
 }

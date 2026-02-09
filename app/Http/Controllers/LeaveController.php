@@ -178,28 +178,80 @@ class LeaveController extends Controller
             ], 403);
         }
 
+        // ✅ Validation basique (SANS jours_utilises)
         $data = $request->validate([
             'leave_type_id' => 'required|exists:leave_types,id',
-            'date_debut' => 'required|date',
-            'date_fin' => 'required|date|after_or_equal:date_debut',
-            'heure_debut' => 'required',
-            'heure_fin' => 'required',
-            'jours_utilises' => 'required|numeric|min:0.01',
-            'raison' => 'nullable|string|max:500',
+            'date_debut'    => 'required|date',
+            'date_fin'      => 'required|date|after_or_equal:date_debut',
+            'heure_debut'   => 'required',
+            'heure_fin'     => 'required',
+            'raison'        => 'nullable|string|max:500',
         ]);
 
-        // ✅ Personnel imposé côté backend
+        // 🔒 Personnel imposé côté backend
         $data['personnel_id'] = $user->personnel_id;
         $data['status'] = 'en_attente';
 
-        // ✅ Passe par toute la logique métier (soldes, règles, etc.)
-        $leave = $service->create($data);
+        $type = LeaveType::findOrFail($data['leave_type_id']);
+
+        // 🔢 Calcul OFFICIEL des jours (backend)
+        $jours = $service->getDaysForLeave($data, $type);
+
+        if ($jours <= 0) {
+            return response()->json([
+                'message' => 'La durée du congé est invalide.'
+            ], 422);
+        }
+
+        /* =========================================================
+        | CONTRÔLES MÉTIER AVANT CRÉATION (UX + SÉCURITÉ)
+        ========================================================= */
+
+        // 🟠 CONGÉS EXCEPTIONNELS (ex: Déménagement, Mariage, Décès…)
+        if ($type->est_exceptionnel && $type->limite_jours !== null) {
+
+            $dejaPris = Leave::where('personnel_id', $user->personnel_id)
+                ->where('leave_type_id', $type->id)
+                ->where('status', 'approuve_rh')
+                ->sum('jours_utilises');
+
+            if (($dejaPris + $jours) > $type->limite_jours) {
+                return response()->json([
+                    'message' => "Quota dépassé pour le congé « {$type->nom} »"
+                ], 422);
+            }
+        }
+
+        // 🟡 BILLET / PERMISSION (limite annuelle stricte, ex: 3 jours)
+        if ($type->code === 'ANNUEL' && $type->limite_jours !== null) {
+
+            $dejaPris = Leave::where('personnel_id', $user->personnel_id)
+                ->where('leave_type_id', $type->id)
+                ->where('status', 'approuve_rh')
+                ->sum('jours_utilises');
+
+            if (($dejaPris + $jours) > $type->limite_jours) {
+                return response()->json([
+                    'message' => "Quota annuel dépassé pour le congé « {$type->nom} »"
+                ], 422);
+            }
+        }
+
+        /* =========================================================
+        | CRÉATION VIA LE SERVICE MÉTIER
+        ========================================================= */
+
+        $leave = $service->create([
+            ...$data,
+            'jours_utilises' => $jours, // 🔒 valeur calculée backend
+        ]);
 
         return response()->json([
-            'message' => 'Demande envoyée avec succès',
-            'leave' => $leave
+            'message' => 'Demande de congé envoyée avec succès',
+            'leave'   => $leave
         ], 201);
     }
+
 
     public function annulerEmploye(Leave $leave)
     {
@@ -225,96 +277,112 @@ class LeaveController extends Controller
         ]);
     }
 
-     /**
-     * Retourne les soldes d'un employé connecté pour une année donnée (par défaut année courante)
-     */
     public function soldesEmploye(Request $request)
     {
         $user = auth()->user();
 
-        // 🔒 Vérification : l'utilisateur doit être lié à un personnel
         if (!$user || !$user->personnel_id) {
             return response()->json([
-                'message' => 'Aucun personnel associé à votre compte. Veuillez contacter l’administrateur.'
+                'message' => 'Aucun personnel associé à votre compte.'
             ], 403);
         }
 
         $personnel = $user->personnel;
-        $year = $request->input('annee', now()->year);
+        $annee = (int) $request->input('annee', now()->year);
 
-        // 1️⃣ Tous les types de congés
-        $leaveTypes = LeaveType::all();
-
-        // 2️⃣ Solde annuel / global pour l'année de référence
         $balance = LeaveBalance::where('personnel_id', $personnel->id)
-            ->where('annee_reference', $year)
+            ->where('annee_reference', $annee)
             ->first();
 
-        // 3️⃣ Jours utilisés par type_id (optimisation)
-        $usedByType = Leave::where('personnel_id', $personnel->id)
-            ->where('status', 'approuve_rh')
-            ->whereYear('date_debut', $year)
-            ->groupBy('leave_type_id')
-            ->selectRaw('leave_type_id, SUM(jours_utilises) as total')
-            ->pluck('total', 'leave_type_id');
+        if (!$balance) {
+            return response()->json([
+                'personnel' => $personnel,
+                'annee' => $annee,
+                'has_balance' => false,
+                'soldes' => [],
+            ]);
+        }
 
-        // 4️⃣ Calcul des soldes
-        $soldes = $leaveTypes->map(function ($type) use ($balance, $usedByType) {
+        $leaveTypes = LeaveType::all()->keyBy('id');
 
-            $joursUtilises = $usedByType[$type->id] ?? 0;
+        $soldes = collect($balance->soldes_par_type ?? [])
+            ->map(function ($data, $typeId) use ($leaveTypes, $balance) {
 
-            // Droit total selon le type
-            $droitTotal = $this->getDroitTotal($type, $balance);
+                $type = $leaveTypes[$typeId] ?? null;
+                if (!$type) return null;
 
-            // Solde restant (peut être négatif)
-            $soldeRestant = ($type->avec_solde || $type->est_exceptionnel)
-                ? ($droitTotal - $joursUtilises)
-                : 0;
+                /* ================= EXCEPTIONNELS ================= */
+                if ($type->est_exceptionnel) {
 
-            // Limite pour Billet/Permission seulement
-            $limite = $type->limite_jours ?? 0;
+                    $droitTotal = $type->limite_jours ?? 0;
+                    $utilises   = $data['utilises'] ?? 0;
 
-            return [
-                'leave_type_id'     => $type->id,
-                'leave_type'        => $type->nom,
-                'code'              => $type->code,
-                'est_exceptionnel'  => $type->est_exceptionnel,
-                'droit_total'       => round($droitTotal, 2),
-                'jours_utilises'    => round($joursUtilises, 2),
-                'solde_restant'     => round($soldeRestant, 2),
-                'limite_jours'      => $limite,
-            ];
-        });
+                    return [
+                        'leave_type_id'    => $type->id,
+                        'leave_type'       => $type->nom,
+                        'code'             => $type->code,
+                        'avec_solde'       => false,
+                        'est_exceptionnel' => true,
+                        'limite_jours'     => $type->limite_jours,
+                        'droit_total'      => round($droitTotal, 2),
+                        'jours_utilises'   => round($utilises, 2),
+                        'solde_restant'    => round(max($droitTotal - $utilises, 0), 2),
+                    ];
+                }
+
+                /* ================= AVEC SOLDE (ANNUEL + BILLET) ================= */
+                if ($type->avec_solde) {
+
+                    return [
+                        'leave_type_id'    => $type->id,
+                        'leave_type'       => $type->nom,
+                        'code'             => $type->code,
+                        'avec_solde'       => true,
+                        'est_exceptionnel' => false,
+                        'limite_jours'     => $type->limite_jours,
+                        'droit_total'      => round($balance->solde_global_jours, 2),
+                        'jours_utilises'   => round($data['utilises'] ?? 0, 2),
+                        'solde_restant'    => round($balance->solde_global_restant, 2),
+                    ];
+                }
+
+                /* ================= SANS SOLDE ================= */
+                return [
+                    'leave_type_id'    => $type->id,
+                    'leave_type'       => $type->nom,
+                    'code'             => $type->code,
+                    'avec_solde'       => false,
+                    'est_exceptionnel' => false,
+                    'limite_jours'     => null,
+                    'droit_total'      => 0,
+                    'jours_utilises'   => 0,
+                    'solde_restant'    => 0,
+                ];
+            })
+            ->filter()
+            ->values();
 
         return response()->json([
             'personnel' => [
-                'id'        => $personnel->id,
+                'id' => $personnel->id,
                 'matricule' => $personnel->matricule,
-                'nom'       => $personnel->nom,
-                'prenom'    => $personnel->prenom,
+                'nom' => $personnel->nom,
+                'prenom' => $personnel->prenom,
             ],
-            'annee' => (int)$year,
-            'has_balance' => (bool)$balance,
-            'soldes' => $soldes
+            'annee' => $annee,
+            'has_balance' => true,
+            'soldes' => $soldes,
         ]);
     }
-    /**
-     * 🔐 Politique RH centralisée
-     */
-    private function getDroitTotal($type, $balance)
+    public function soldeGlobal(Request $request)
     {
-        if (!$balance) return 0;
+        $balance = LeaveBalance::where('personnel_id', auth()->user()->personnel_id)
+            ->where('annee_reference', (int) $request->input('annee', now()->year))
+            ->firstOrFail();
 
-        // Congés exceptionnels → limite fixe
-        if ($type->est_exceptionnel) {
-            return $type->limite_jours;           
-        }
-
-        // Congé annuel ou Billet/Permission → droit annuel partagé
-        if ($type->avec_solde) {
-            return (float) $balance->solde_annuel_jours;
-        }
-
-        return 0;
+        return response()->json([
+            'solde_global_restant' => round($balance->solde_global_restant, 2)
+        ]);
     }
+
 }
