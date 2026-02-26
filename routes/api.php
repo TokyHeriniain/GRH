@@ -20,7 +20,8 @@ use App\Http\Controllers\{
     PersonnelSoldesController,
     LeaveExportController,
     ProfileController,
-    LeaveCheckController
+    LeaveCheckController,
+    NotificationController
 };
 
 use App\Http\Controllers\Api\{
@@ -189,6 +190,15 @@ Route::middleware('auth:sanctum')->group(function () {
             ->get('/solde-global', [LeaveController::class, 'soldeGlobal']);
         Route::post('/conges/{leave}/annuler', [LeaveController::class, 'annulerEmploye']);
     });
+    //Manager - Validation de ses subordonnés
+    Route::middleware(['auth:sanctum'])->prefix('manager')->group(function () {
+
+        Route::get('/conges', [LeaveController::class, 'mesDemandesEquipe']);
+        Route::post('/conges/{leave}/approve', [LeaveController::class, 'approveManager']);
+        Route::post('/conges/{leave}/reject', [LeaveController::class, 'rejectManager']);
+
+    });
+
 
     /*
     |--------------------------------------------------------------------------
@@ -355,6 +365,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/leaves/check-solde', [LeaveCheckController::class, 'check']);
     });
+
+    //NOtifications
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/notifications', [NotificationController::class, 'index']);
+        Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    });
+
 
     
 });

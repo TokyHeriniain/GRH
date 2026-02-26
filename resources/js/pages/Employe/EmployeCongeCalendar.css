@@ -1,0 +1,8 @@
+.fc-conge-refuse {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+.fc-conge-invalide {
+  opacity: 0.5;
+  text-decoration: line-through;
+}

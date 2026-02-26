@@ -1,6 +1,7 @@
 import { FiMenu } from "react-icons/fi";
 import { Image } from "react-bootstrap";
 import { useNavigation } from "./NavigationContext";
+import NotificationsDropdown from "./NotificationsDropdown";
 
 const Topbar = () => {
   const { mobileOpen, setMobileOpen, toggleTheme, theme } = useNavigation();
@@ -34,14 +35,24 @@ const Topbar = () => {
             roundedCircle
             style={{ width: "45px", height: "45px", objectFit: "cover" }}
           />
+
           <h5 className="text-white fw-bold m-0">Ny Havana</h5>
         </div>
 
-        <button className="btn btn-outline-light" onClick={toggleTheme}>
-          {theme === "light" ? "🌙" : "☀️"}
-        </button>
+        {/* RIGHT SIDE */}
+        <div className="d-flex align-items-center gap-3">
+
+          {/* 🔔 Notifications */}
+          <NotificationsDropdown />
+
+          {/* 🌙 / ☀️ Theme toggle */}
+          <button className="btn btn-outline-light" onClick={toggleTheme}>
+            {theme === "light" ? "🌙" : "☀️"}
+          </button>
+        </div>
       </header>
 
+      {/* Spacer to avoid overlap */}
       <div style={{ height: "65px" }}></div>
     </>
   );

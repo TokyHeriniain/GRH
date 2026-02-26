@@ -20,6 +20,8 @@ import DemandeConge from './pages/Employe/DemandeConge';
 import ChangePassword from './pages/Auth/ChangePassword';
 import EmployeConge from './pages/Employe/EmployeConge';
 import DashboardEmploye from './pages/Employe/DashboardEmploye';
+import CongeEquipe from './pages/Manager/CongeEquipe';
+import DashboardManager from './pages/Manager/DashboardManager';
 
 const ProtectedRoute = ({ children, roles }) => {
     const { user } = useAuth();
@@ -69,7 +71,17 @@ const AppRoutes = () => {
                         <DashboardEmploye/>
                     </ProtectedRoute>                    
                 } />                                     
-
+                {/* Manager only */}
+                <Route path="/manager/conges" element={
+                    <ProtectedRoute roles={['Manager', 'Admin', 'RH']}>
+                        <CongeEquipe/>
+                    </ProtectedRoute>                    
+                } /> 
+                <Route path="/manager/dashboard" element={
+                    <ProtectedRoute roles={['Manager', 'Admin', 'RH']}>
+                        <DashboardManager/>
+                    </ProtectedRoute>                    
+                } /> 
                 {/* Admin only */}
                 <Route path="/admin/users" element={
                     <ProtectedRoute roles={['Admin']}>

@@ -22,7 +22,7 @@ class DatabaseSeeder extends Seeder
             User::create([
                 'name' => 'Admin User',
                 'email' => 'admin@nyhavana.mg',
-                'password' => bcrypt('password'),
+                'password' => bcrypt('tsyfatako'),
                 'role_id' => Role::where('name', 'Admin')->first()->id,
             ]);
         }

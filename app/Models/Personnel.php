@@ -9,7 +9,8 @@ class Personnel extends Model
     protected $fillable = [
         'nom', 'prenom', 'email', 'matricule', 'date_naissance',
         'adresse', 'cin', 'diplome', 'date_entree', 'photo',
-        'direction_id', 'service_id', 'fonction_id',
+        'direction_id', 'service_id', 'fonction_id', 'manager_id', 'user_id',
+        'niveau',
     ];
 
     protected $casts = [
@@ -59,4 +60,29 @@ class Personnel extends Model
     {
         return $this->hasOne(LeaveBalance::class);
     }
+    // 🔹 Manager direct
+    public function manager()
+    {
+        return $this->belongsTo(Personnel::class, 'manager_id');
+    }
+
+    // 🔹 Employés sous sa responsabilité
+    public function subordinates()
+    {
+        return $this->hasMany(Personnel::class, 'manager_id');
+    }
+
+    public function superieurs()
+    {
+        $superieurs = collect();
+        $current = $this->manager;
+
+        while ($current) {
+            $superieurs->push($current);
+            $current = $current->manager;
+        }
+
+        return $superieurs;
+    }
+
 }

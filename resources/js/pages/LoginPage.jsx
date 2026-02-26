@@ -13,7 +13,7 @@ import { useAuth } from "../contexts/AuthContext";
 import toast from "react-hot-toast";
 
 const LoginPage = () => {
-  const { login } = useAuth();
+  const { login,user } = useAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
@@ -36,7 +36,12 @@ const LoginPage = () => {
       }
 
       toast.success("Connexion réussie 🎉");
-      navigate("/dashboard"); // ou employe/dashboard
+      {/* Employé */}
+          if (user.role?.name === "Employe") {
+        navigate("/dashboard-employe");
+      } else {
+        navigate("/dashboard");
+      }
 
     } catch (error) {
       toast.error("Identifiants incorrects ❌");

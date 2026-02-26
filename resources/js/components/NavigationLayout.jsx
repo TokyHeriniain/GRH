@@ -1,5 +1,6 @@
 import Topbar from "./Topbar";
 import Sidebar from "./Sidebar";
+import NotificationsDropdown from "./NotificationsDropdown";
 import { NavigationProvider } from "./NavigationContext";
 
 const NavigationLayout = ({ children }) => {

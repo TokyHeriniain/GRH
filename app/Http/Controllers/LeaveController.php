@@ -385,4 +385,49 @@ class LeaveController extends Controller
         ]);
     }
 
+    //Espace Manger – Validation des demandes de congé
+    public function mesDemandesEquipe(Request $request)
+    {
+        $user = auth()->user();
+
+        // Vérifier que c'est un manager
+        if ($user->role->name !== 'Manager') {
+            return response()->json(['message' => 'Accès non autorisé'], 403);
+        }
+
+        $leaves = Leave::with(['personnel', 'leaveType'])
+            ->whereHas('personnel', function ($q) use ($user) {
+                $q->where('manager_id', $user->personnel->id);
+            })
+            ->orderBy('date_debut', 'desc')
+            ->paginate(10);
+
+        return response()->json($leaves);
+    }
+
+    
+    public function approveManager(Leave $leave)
+    {
+        $updated = $this->service->validateManager($leave, auth()->id());
+
+        return response()->json([
+            'message' => 'Congé validé par le manager',
+            'data' => $updated
+        ]);
+    }
+
+    public function rejectManager(Request $request, Leave $leave)
+    {
+        $updated = $this->service->rejectManager(
+            $leave,
+            auth()->id(),
+            $request->rejection_reason ?? null
+        );
+
+        return response()->json([
+            'message' => 'Congé rejeté par le manager',
+            'data' => $updated
+        ]);
+    }
+
 }

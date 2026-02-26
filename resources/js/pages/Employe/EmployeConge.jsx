@@ -1,20 +1,38 @@
 import React, { useEffect, useState } from "react";
 import api from "@/axios";
-import { Table, Button, Spinner, Alert, Card } from "react-bootstrap";
+import {
+  Table,
+  Button,
+  Spinner,
+  Alert,
+  Card,
+} from "react-bootstrap";
 import Pagination from "react-bootstrap/Pagination";
 import { ToastContainer, toast } from "react-toastify";
 import NavigationLayout from "../../components/NavigationLayout";
+
+// 📅 Calendar
+import FullCalendar from "@fullcalendar/react";
+import dayGridPlugin from "@fullcalendar/daygrid";
+import interactionPlugin from "@fullcalendar/interaction";
+
+// 🧩 Modal
+import CongeDetailModal from "./CongeDetailModal";
+import "./EmployeCongeCalendar.css";
 
 const EmployeConge = () => {
   const [conges, setConges] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [soldes, setSoldes] = useState([]);
+  const [selectedConge, setSelectedConge] = useState(null);
+
   const [pagination, setPagination] = useState({
     current_page: 1,
     last_page: 1,
   });
 
+  /* ================= FETCH ================= */
   const fetchMesConges = async (page = 1) => {
     setLoading(true);
     try {
@@ -25,11 +43,8 @@ const EmployeConge = () => {
         last_page: res.data.last_page,
       });
       setError(null);
-    } catch (err) {
-      setError(
-        err.response?.data?.message ||
-        "Impossible de charger l’historique des congés"
-      );
+    } catch {
+      setError("Impossible de charger l’historique des congés");
     } finally {
       setLoading(false);
     }
@@ -49,6 +64,7 @@ const EmployeConge = () => {
     fetchSoldes();
   }, []);
 
+  /* ================= ACTIONS ================= */
   const annulerDemande = async (id) => {
     if (!window.confirm("Annuler cette demande ?")) return;
 
@@ -62,18 +78,58 @@ const EmployeConge = () => {
     }
   };
 
+  /* ================= CALENDAR HELPERS ================= */
+  const addOneDay = (date) => {
+    const d = new Date(date);
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split("T")[0];
+  };
+
+  const getColor = (status) => {
+    switch (status) {
+      case "approuve_manager":
+      case "approuve_rh":
+        return "#28a745";
+      case "en_attente":
+        return "#ffc107";
+      case "rejete":
+      case "annule":
+        return "#dc3545";
+      default:
+        return "#6c757d";
+    }
+  };
+
+  const calendarEvents = conges.map((c) => ({
+    id: c.id,
+    title: c.leave_type?.nom,
+    start: c.date_debut,
+    end: addOneDay(c.date_fin),
+    backgroundColor: getColor(c.status),
+    borderColor: getColor(c.status),
+    status: c.status,
+  }));
+
+  const handleEventClick = (info) => {
+    const conge = conges.find((c) => c.id == info.event.id);
+    setSelectedConge(conge);
+  };
+
+  /* ================= STATUS BADGE ================= */
   const renderStatus = (status) => {
     switch (status) {
       case "approuve_manager":
         return <span className="badge bg-success">Approuvé manager</span>;
       case "approuve_rh":
         return <span className="badge bg-primary">Approuvé RH</span>;
+      case "en_attente":
+        return <span className="badge bg-warning text-dark">En attente</span>;
       case "rejete":
         return <span className="badge bg-danger">Rejeté</span>;
       case "annule":
         return <span className="badge bg-secondary">Annulé</span>;
       default:
-        return <span className="badge bg-warning text-dark">En attente</span>;
+        return status;
     }
   };
 
@@ -81,10 +137,53 @@ const EmployeConge = () => {
     <NavigationLayout>
       <div className="container mt-4">
         <ToastContainer />
-        
 
         <h4 className="mb-3">📋 Mes demandes de congé</h4>
 
+        {/* 🗓️ CALENDRIER */}
+        <Card className="mb-4 shadow-sm">
+          <Card.Body>
+            <h6 className="mb-3">🗓️ Calendrier des congés</h6>
+
+            {/* LÉGENDE */}
+            <div className="d-flex gap-3 mb-3 flex-wrap">
+              <span>
+                <span className="badge me-1" style={{ background: "#28a745" }}>
+                  &nbsp;
+                </span>
+                Approuvé
+              </span>
+              <span>
+                <span className="badge me-1" style={{ background: "#ffc107" }}>
+                  &nbsp;
+                </span>
+                En attente
+              </span>
+              <span>
+                <span className="badge me-1" style={{ background: "#dc3545" }}>
+                  &nbsp;
+                </span>
+                Rejeté / Annulé
+              </span>
+            </div>
+
+            <FullCalendar
+              plugins={[dayGridPlugin, interactionPlugin]}
+              initialView="dayGridMonth"
+              events={calendarEvents}
+              locale="fr"
+              firstDay={1}
+              height="auto"
+              eventClick={handleEventClick}
+              eventMouseEnter={(info) => {
+                info.el.title = `${info.event.title}
+Statut : ${info.event.extendedProps.status}`;
+              }}
+            />
+          </Card.Body>
+        </Card>
+
+        {/* TABLE */}
         {loading && (
           <div className="text-center my-4">
             <Spinner animation="border" />
@@ -93,14 +192,16 @@ const EmployeConge = () => {
 
         {error && <Alert variant="danger">{error}</Alert>}
 
-        {!loading && Array.isArray(conges) && conges.length === 0 && (
-          <Alert variant="info">Aucune demande de congé trouvée.</Alert>
+        {!loading && conges.length === 0 && (
+          <Alert variant="info">
+            📭 Vous n’avez encore aucune demande de congé.
+          </Alert>
         )}
 
-        {!loading && Array.isArray(conges) && conges.length > 0 && (
+        {!loading && conges.length > 0 && (
           <>
             <Table striped bordered hover responsive>
-              <thead className="table-light">
+              <thead>
                 <tr>
                   <th>Type</th>
                   <th>Début</th>
@@ -123,8 +224,8 @@ const EmployeConge = () => {
                     <td>
                       {c.status === "en_attente" && (
                         <Button
-                          variant="outline-danger"
                           size="sm"
+                          variant="outline-danger"
                           onClick={() => annulerDemande(c.id)}
                         >
                           Annuler
@@ -149,50 +250,13 @@ const EmployeConge = () => {
             </Pagination>
           </>
         )}
-        {/* SOLDES */}
-        <Card className="mb-4">
-          <Card.Header>📊 Soldes de congé</Card.Header>
-          <Card.Body>
-            <Table size="sm" bordered>
-              <thead>
-                <tr>
-                  <th>Type</th>
-                  <th>Droit</th>
-                  <th>Utilisés</th>
-                  <th>Restant</th>
-                </tr>
-              </thead>
-              <tbody>
-                {soldes.length === 0 ? (
-                  <tr>
-                    <td colSpan="4" className="text-center text-muted">
-                      Aucun solde disponible
-                    </td>
-                  </tr>
-                ) : (
-                  soldes.map((s) => (
-                    <tr key={s.leave_type_id}>
-                      <td>{s.leave_type}</td>
-                      <td>{Number(s.droit_total).toFixed(2)}</td>
-                      <td>{Number(s.jours_utilises).toFixed(2)}</td>
-                      <td>
-                        <strong
-                          className={
-                            s.solde_restant < 0
-                              ? "text-danger"
-                              : "text-success"
-                          }
-                        >
-                          {Number(s.solde_restant).toFixed(2)}
-                        </strong>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </Table>
-          </Card.Body>
-        </Card>
+
+        {/* MODAL */}
+        <CongeDetailModal
+          show={!!selectedConge}
+          conge={selectedConge}
+          onHide={() => setSelectedConge(null)}
+        />
       </div>
     </NavigationLayout>
   );

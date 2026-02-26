@@ -90,6 +90,8 @@ export default function GestionPersonnelsModern() {
     direction_id: "",
     service_id: "",
     fonction_id: "",
+    manager_id: "",
+    niveau: 4, // par défaut le niveau hiérarchique le plus bas (ex: agent)
     photo: null,
   });
   const [photoPreview, setPhotoPreview] = useState(null);
@@ -196,6 +198,19 @@ export default function GestionPersonnelsModern() {
 
     loadReferentiels();
   }, []);
+
+  const managerOptions = useMemo(() => {
+    return personnels
+      .filter(p =>
+        p.id !== editing &&
+        p.niveau < form.niveau &&
+        p.direction_id === form.direction_id 
+      )
+      .map(p => ({
+        value: p.id,
+        label: `${p.nom} (${p.fonction?.nom || ""})`
+      }));
+  }, [personnels, form.niveau, form.direction_id, editing]);
 
 
 
@@ -329,6 +344,8 @@ export default function GestionPersonnelsModern() {
       direction_id: "",
       service_id: "",
       fonction_id: "",
+      manager_id: "",
+      niveau:4,
       photo: null,
     });
     setPhotoPreview(null);
@@ -353,6 +370,8 @@ export default function GestionPersonnelsModern() {
       direction_id: p.direction_id || "",
       service_id: p.service_id || "",
       fonction_id: p.fonction_id || "",
+      manager_id: p.manager_id || "", 
+      niveau:p.niveau || "",     
       photo: null,
     });
     setPhotoPreview(p.photo_url || null);
@@ -436,6 +455,11 @@ export default function GestionPersonnelsModern() {
       selectedIds.length > 0 &&
       selectedIds.length < sortedPersonnels.length;
   }, [selectedIds, sortedPersonnels.length]);
+  useEffect(() => {
+    if (form.niveau === 1) {
+      setForm(prev => ({ ...prev, manager_id: "" }));
+    }
+  }, [form.niveau]);
 
   const CompactBadge = ({ bg, text, maxWidth = 120 }) => (
     <Badge
@@ -602,6 +626,7 @@ export default function GestionPersonnelsModern() {
                     <th style={{ width: 160 }}>Direction</th>
                     <th style={{ width: 160 }}>Service</th>
                     <th style={{ width: 180 }}>Fonction</th>
+                    <th style={{ width: 180 }}>Manager</th>
                     <th style={{ width: 140 }}>Actions</th>
                   </tr>
                 </thead>
@@ -666,6 +691,11 @@ export default function GestionPersonnelsModern() {
                             : "-"}
                         </td>
 
+                        <td>
+                          {p.manager?.nom
+                            ? <CompactBadge bg="dark" text={`${p.manager.nom} ${p.manager.prenom || ""}`} />
+                            : "-"}
+                        </td>
 
                         {/* Actions compactes */}
                         <td>
@@ -784,7 +814,49 @@ export default function GestionPersonnelsModern() {
                   <Select options={fonctionOptions.filter(f => !form.service_id || f.service_id === form.service_id)} value={fonctionOptions.find(f => f.value === form.fonction_id) || null} onChange={(v) => setForm({ ...form, fonction_id: v?.value || "" })} isClearable isDisabled={!form.service_id} />
                 </Form.Group></Col>
               </Row>
+              <Row>
+                <Col md={6}><Form.Group className="mb-2"><Form.Label>CIN</Form.Label><Form.Control value={form.cin} onChange={(e) => setForm({ ...form, cin: e.target.value })} /></Form.Group></Col>
+                <Col md={6}><Form.Group className="mb-2"><Form.Label>Diplôme</Form.Label><Form.Control value={form.diplome} onChange={(e) => setForm({ ...form, diplome: e.target.value })} /></Form.Group></Col>
+              </Row>
+              <Row>
+                <Col md={4}>
+                  <Form.Group className="mb-2">
+                    <Form.Label>Niveau hiérarchique</Form.Label>
+                    <Form.Select
+                      value={form.niveau}
+                      onChange={(e) => {
+                        const newNiveau = parseInt(e.target.value);
+                        setForm({
+                          ...form,
+                          niveau: newNiveau,
+                          manager_id: "" // reset manager
+                        });
+                      }}
+                    >
+                      <option value={1}>DG</option>
+                      <option value={2}>Directeur</option>
+                      <option value={3}>Manager</option>
+                      <option value={4}>Employé</option>
+                    </Form.Select>
+                  </Form.Group>
+                </Col>
+              </Row>
+              <Row>
+                <Col md={6}>
+                  <Form.Group className="mb-2">
+                    <Form.Label>Manager</Form.Label>
+                    <Select
+                      options={managerOptions}
+                      value={managerOptions.find(m => m.value === form.manager_id) || null}
+                      onChange={(v) => setForm({ ...form, manager_id: v?.value || "" })}
+                      isClearable
+                      placeholder="Choisir un manager"
+                      isDisabled={!form.direction_id || form.niveau === 1}
 
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
               <Row className="align-items-center">
                 <Col md={8}><Form.Group className="mb-2"><Form.Label>Adresse</Form.Label><Form.Control value={form.adresse} onChange={(e) => setForm({ ...form, adresse: e.target.value })} /></Form.Group></Col>
 

@@ -21,7 +21,7 @@ class PersonnelController extends Controller
     public function index(Request $request)
     {
         $query = Personnel::query()
-            ->with(['direction', 'service', 'fonction']);
+            ->with(['direction', 'service', 'fonction', 'manager']);
 
         // 🔎 Recherche texte (accent-insensitive)
         if ($request->filled('q')) {
@@ -82,36 +82,61 @@ class PersonnelController extends Controller
             'direction_id' => 'required|exists:directions,id',
             'service_id' => 'required|exists:services,id',
             'fonction_id' => 'required|exists:fonctions,id',
+
+            'manager_id' => 'nullable|exists:personnels,id',
+            'niveau' => 'required|integer|min:1|max:4',
         ]);
 
-        // 🔐 Contrôle hiérarchique RH
+        // 🔐 Cohérence Direction → Service
         $service = Service::findOrFail($validated['service_id']);
         if ($service->direction_id != $validated['direction_id']) {
-            abort(422, "Service incohérent avec la direction");
+            abort(422, "Service incohérent avec la direction.");
         }
 
+        // 🔐 Cohérence Service → Fonction
         $fonction = Fonction::findOrFail($validated['fonction_id']);
         if ($fonction->service_id != $validated['service_id']) {
-            abort(422, "Fonction incohérente avec le service");
+            abort(422, "Fonction incohérente avec le service.");
         }
 
-        // 👶 Âge légal RH (16 ans)
-        if (!empty($validated['date_naissance'])) {
-            if (Carbon::parse($validated['date_entree'])
-                ->lt(Carbon::parse($validated['date_naissance'])->addYears(16))) {
-                abort(422, "Entrée avant l'âge légal RH");
+        // 🔐 Manager obligatoire sauf pour niveau 1 (DG)
+        if ($validated['niveau'] > 1 && empty($validated['manager_id'])) {
+            abort(422, "Un supérieur hiérarchique est requis pour ce niveau.");
+        }
+
+        if (!empty($validated['manager_id'])) {
+            $manager = Personnel::findOrFail($validated['manager_id']);
+
+            // 🔐 Le manager doit être d'une direction cohérente
+            if ($manager->direction_id != $validated['direction_id']) {
+                abort(422, "Le manager doit appartenir à la même direction.");
+            }
+
+            // 🔐 Vérification niveau hiérarchique
+            if ($manager->niveau >= $validated['niveau']) {
+                abort(422, "Le manager doit avoir un niveau hiérarchique supérieur.");
             }
         }
 
-        // 📸 Photo
+        // 👶 Vérification âge légal (16 ans minimum)
+        if (!empty($validated['date_naissance'])) {
+            if (Carbon::parse($validated['date_entree'])
+                ->lt(Carbon::parse($validated['date_naissance'])->addYears(16))) {
+                abort(422, "Entrée avant l'âge légal autorisé (16 ans).");
+            }
+        }
+
+        // 📸 Gestion photo
         if ($request->hasFile('photo')) {
             $validated['photo'] = $request->file('photo')->store('photos', 'public');
         }
-
+        if ($validated['niveau'] == 1) {
+            $validated['manager_id'] = null;
+        }
         $personnel = Personnel::create($validated);
 
         return response()->json(
-            $personnel->load('direction', 'service', 'fonction'),
+            $personnel->load('direction', 'service', 'fonction', 'manager'),
             201
         );
     }
@@ -122,7 +147,7 @@ class PersonnelController extends Controller
 
         $validated = $request->validate([
             'nom' => 'required|string|max:255',
-            'prenom' => 'required|string|max:255',
+            'prenom' => 'nullable|string|max:255',
             'matricule' => 'required|string|max:255|unique:personnels,matricule,' . $id,
 
             'date_naissance' => 'nullable|date|before_or_equal:today',
@@ -136,44 +161,91 @@ class PersonnelController extends Controller
             'direction_id' => 'required|exists:directions,id',
             'service_id' => 'required|exists:services,id',
             'fonction_id' => 'required|exists:fonctions,id',
+
+            'manager_id' => 'nullable|exists:personnels,id',
+            'niveau' => 'required|integer|min:1|max:4',
         ]);
 
-        // 🔐 Contrôle hiérarchique RH
+        // 🔐 Empêcher auto-référence
+        if (!empty($validated['manager_id']) && $validated['manager_id'] == $id) {
+            abort(422, "Un personnel ne peut pas être son propre manager.");
+        }
+
+        // 🔐 Cohérence Direction → Service
         $service = Service::findOrFail($validated['service_id']);
         if ($service->direction_id != $validated['direction_id']) {
-            abort(422, "Service incohérent avec la direction");
+            abort(422, "Service incohérent avec la direction.");
         }
 
+        // 🔐 Cohérence Service → Fonction
         $fonction = Fonction::findOrFail($validated['fonction_id']);
         if ($fonction->service_id != $validated['service_id']) {
-            abort(422, "Fonction incohérente avec le service");
+            abort(422, "Fonction incohérente avec le service.");
         }
 
-        // 👶 Âge légal RH
-        if (!empty($validated['date_naissance'])) {
-            if (Carbon::parse($validated['date_entree'])
-                ->lt(Carbon::parse($validated['date_naissance'])->addYears(16))) {
-                abort(422, "Entrée avant l'âge légal RH");
+        // 🔐 Manager obligatoire sauf DG
+        if ($validated['niveau'] > 1 && empty($validated['manager_id'])) {
+            abort(422, "Un supérieur hiérarchique est requis pour ce niveau.");
+        }
+
+        if (!empty($validated['manager_id'])) {
+            $manager = Personnel::findOrFail($validated['manager_id']);
+
+            // 🔐 Direction cohérente
+            if ($manager->direction_id != $validated['direction_id']) {
+                abort(422, "Le manager doit appartenir à la même direction.");
+            }
+
+            // 🔐 Niveau cohérent
+            if ($manager->niveau >= $validated['niveau']) {
+                abort(422, "Le manager doit avoir un niveau hiérarchique supérieur.");
+            }
+
+            // 🔐 Détection boucle hiérarchique
+            if ($this->createsCycle($id, $validated['manager_id'])) {
+                abort(422, "Hiérarchie invalide : boucle détectée.");
             }
         }
 
-        // 📸 Photo
+        // 👶 Vérification âge légal
+        if (!empty($validated['date_naissance'])) {
+            if (Carbon::parse($validated['date_entree'])
+                ->lt(Carbon::parse($validated['date_naissance'])->addYears(16))) {
+                abort(422, "Entrée avant l'âge légal autorisé (16 ans).");
+            }
+        }
+
+        // 📸 Gestion photo
         if ($request->hasFile('photo')) {
             if ($personnel->photo) {
                 Storage::disk('public')->delete($personnel->photo);
             }
             $validated['photo'] = $request->file('photo')->store('photos', 'public');
         }
+        if ($validated['niveau'] == 1) {
+            $validated['manager_id'] = null;
+        }
 
         $personnel->update($validated);
 
         return response()->json([
-            'message' => 'Mise à jour réussie',
-            'personnel' => $personnel->load('direction', 'service', 'fonction')
+            'message' => 'Mise à jour réussie.',
+            'personnel' => $personnel->load('direction', 'service', 'fonction', 'manager'),
         ]);
     }
+    private function createsCycle($personnelId, $managerId)
+    {
+        $manager = Personnel::find($managerId);
 
+        while ($manager) {
+            if ($manager->id == $personnelId) {
+                return true;
+            }
+            $manager = $manager->manager;
+        }
 
+        return false;
+    }
 
     public function destroy($id)
     {
@@ -217,9 +289,6 @@ class PersonnelController extends Controller
             'errors' => $import->errors,
         ]);
     }
-
-
-
     public function show($id, Request $request)
     {
         $year = $request->query('year', now()->year);
@@ -328,7 +397,6 @@ class PersonnelController extends Controller
         ]);
     }
 
-
     public function exportPDF($id)
     {
         $personnel = Personnel::with(['direction', 'service', 'fonction', 'documents'])->findOrFail($id);
@@ -336,9 +404,7 @@ class PersonnelController extends Controller
         $pdf = PDF::loadView('pdf.personnel-fiche', compact('personnel'))->setPaper('A4');
 
         return $pdf->download("Fiche_{$personnel->nom}_{$personnel->prenom}.pdf");
-    }
-
-    
+    }    
     public function search(Request $request)
     {
         $q = $request->query('q', '');

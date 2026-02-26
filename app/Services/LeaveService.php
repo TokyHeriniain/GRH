@@ -16,7 +16,8 @@ class LeaveService
         protected LeaveBalanceService $balances,
         protected LeaveAuditService $audit,
         protected AnnualLeaveClosureService $closure,
-        protected HolidayService $holidays
+        protected HolidayService $holidays,
+        protected NotificationService $notificationService,
     ) {}
 
     /* =========================================================
@@ -63,6 +64,36 @@ class LeaveService
             [],
             $leave->toArray()
         );
+        // 🔔 Workflow intelligent selon hiérarchie
+        if ($leave->personnel->manager) {
+
+            // 📌 Cas normal : employé ou manager avec N+1
+            $managerId = $leave->personnel->manager->user_id;
+
+            $this->notificationService->notify(
+                $managerId,
+                'leave_created',
+                "Nouvelle demande de congé de {$leave->personnel->nom}",
+                ['leave_id' => $leave->id]
+            );
+
+        } else {
+
+            // 📌 Cas manager sans supérieur → envoi direct RH
+            $rhUsers = User::role('rh')->pluck('id')->toArray();
+
+            $this->notificationService->notifyMany(
+                $rhUsers,
+                'leave_created',
+                "Nouvelle demande de congé de {$leave->personnel->nom}",
+                ['leave_id' => $leave->id]
+            );
+
+            // 🔥 Optionnel : passer directement au statut approuve_manager
+            $leave->update([
+                'status' => 'approuve_manager'
+            ]);
+        }
 
         return $leave;
     }
@@ -235,6 +266,78 @@ class LeaveService
 
             return $leave->fresh();
         });
+    }
+    
+    /* =========================================================
+     | VALIDATION Manager
+     ========================================================= */
+    public function validateManager(Leave $leave, int $managerUserId): Leave
+    {
+        if ($leave->status !== 'en_attente') {
+            throw new \LogicException("Cette demande ne peut plus être validée.");
+        }
+
+        $personnel = $leave->personnel;
+
+        // 🔴 1. Interdiction auto-validation
+        if ($personnel->user_id === $managerUserId) {
+            throw new \LogicException("Vous ne pouvez pas valider votre propre demande de congé.");
+        }
+
+        // 🔴 2. Vérifie hiérarchie réelle
+        if ($personnel->manager?->user_id !== $managerUserId) {
+            throw new \LogicException("Vous n'êtes pas autorisé à valider ce congé.");
+        }
+
+        $leave->update([
+            'status' => 'approuve_manager',
+            'validated_by_manager_id' => $managerUserId,
+            'validated_at_manager' => now(),
+        ]);
+
+        // 🔔 Notification RH
+        $rhUsers = \App\Models\User::role('rh')->pluck('id')->toArray();
+
+        $this->notificationService->notifyMany(
+            $rhUsers,
+            'leave_approved_manager',
+            "Demande validée par le manager ({$personnel->nom})",
+            ['leave_id' => $leave->id]
+        );
+
+        return $leave;
+    }
+
+
+    public function rejectManager(Leave $leave, int $managerUserId, ?string $reason = null): Leave
+    {
+        if ($leave->status !== 'en_attente') {
+            throw new \LogicException("Cette demande ne peut plus être rejetée.");
+        }
+
+        if ($leave->personnel->manager?->user_id !== $managerUserId) {
+            throw new \LogicException("Vous n'êtes pas autorisé à rejeter ce congé.");
+        }
+        if ($leave->personnel->user_id === $managerUserId) {
+            throw new \LogicException("Vous ne pouvez pas rejeter votre propre demande.");
+        }
+
+        $leave->update([
+            'status' => 'rejete',
+            'rejection_reason' => $reason,
+            'validated_by_manager_id' => $managerUserId,
+            'validated_at_manager' => now(),
+        ]);
+
+        // 🔔 Notification Employé
+        $this->notificationService->notify(
+            $leave->personnel->user_id,
+            'leave_rejected',
+            "Votre demande de congé a été rejetée par le manager.",
+            ['leave_id' => $leave->id]
+        );
+
+        return $leave;
     }
 
     /* =========================================================

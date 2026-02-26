@@ -80,93 +80,7 @@ const Sidebar = () => {
         </div>
 
         {/* MENU */}
-        <ul className="nav nav-pills flex-column p-2" style={{ gap: "5px" }}>
-          
-
-          
-
-          {/* Employé */}
-          {user.role?.name === "Employe" && (
-            <>
-              <li>
-                <NavLink
-                  to="/dashboard-employe"
-                  className="nav-link d-flex align-items-center text-white"
-                  style={({ isActive }) => ({
-                    background: isActive ? "#B30000" : "transparent",
-                    borderRadius: "10px",
-                    padding: "10px",
-                  })}
-                >
-                  <FiHome className="me-2" />
-                  {!collapsed && "Dashboard"}
-                </NavLink>
-              </li>
-              <li>
-                <NavLink to="/demande-conge" className="nav-link d-flex text-white">
-                  <FiFileText className="me-2" />
-                  {!collapsed && "Demande de congé"}
-                </NavLink>
-              </li>
-              <li>
-                <NavLink to="/mes-conges" className="nav-link d-flex text-white">
-                  <FiLayers className="me-2" />
-                  {!collapsed && "Mes congés"}
-                </NavLink>
-              </li>
-              <li>
-                <NavLink
-                  to="/profil"
-                  className="nav-link d-flex align-items-center text-white"
-                >
-                  <FiUser className="me-2" />
-                  {!collapsed && "Mon Profil"}
-                </NavLink>
-              </li>
-            </>
-          )}
-
-          {/* Manager/Admin */}
-          {(user.role?.name === "Admin" || user.role?.name === "Manager") && (
-            <>
-              <li>
-                <NavLink
-                  to="/dashboard"
-                  className="nav-link d-flex align-items-center text-white"
-                  style={({ isActive }) => ({
-                    background: isActive ? "#B30000" : "transparent",
-                    borderRadius: "10px",
-                    padding: "10px",
-                  })}
-                >
-                  <FiHome className="me-2" />
-                  {!collapsed && "Dashboard"}
-                </NavLink>
-              </li>
-              <li>
-                <NavLink to="/demande-conge" className="nav-link d-flex text-white">
-                  <FiFileText className="me-2" />
-                  {!collapsed && "Nouvelle demande"}
-                </NavLink>
-              </li>
-              <li>
-                <NavLink to="/manager-conge" className="nav-link d-flex text-white">
-                  <FiLayers className="me-2" />
-                  {!collapsed && "Congés (Manager/Admin)"}
-                </NavLink>
-              </li>
-              <li>
-                <NavLink
-                  to="/profil"
-                  className="nav-link d-flex align-items-center text-white"
-                >
-                  <FiUser className="me-2" />
-                  {!collapsed && "Mon Profil"}
-                </NavLink>
-              </li>
-            </>
-          )}
-
+        <ul className="nav nav-pills flex-column p-2" style={{ gap: "5px" }}>   
           {/* Admin */}
           {user.role?.name === "Admin" && (
             <>
@@ -279,8 +193,47 @@ const Sidebar = () => {
                 </NavLink>
               </li>
             </>
+          )}                
+          {/* Employé */}
+          {user.role?.name === "Employe" && (
+            <>
+              <li>
+                <NavLink
+                  to="/dashboard-employe"
+                  className="nav-link d-flex align-items-center text-white"
+                  style={({ isActive }) => ({
+                    background: isActive ? "#B30000" : "transparent",
+                    borderRadius: "10px",
+                    padding: "10px",
+                  })}
+                >
+                  <FiHome className="me-2" />
+                  {!collapsed && "Dashboard"}
+                </NavLink>
+              </li>
+              <li>
+                <NavLink to="/demande-conge" className="nav-link d-flex text-white">
+                  <FiFileText className="me-2" />
+                  {!collapsed && "Demande de congé"}
+                </NavLink>
+              </li>
+              <li>
+                <NavLink to="/mes-conges" className="nav-link d-flex text-white">
+                  <FiLayers className="me-2" />
+                  {!collapsed && "Mes congés"}
+                </NavLink>
+              </li>
+              <li>
+                <NavLink
+                  to="/profil"
+                  className="nav-link d-flex align-items-center text-white"
+                >
+                  <FiUser className="me-2" />
+                  {!collapsed && "Mon Profil"}
+                </NavLink>
+              </li>
+            </>
           )}
-
           {/* RH */}
           {user.role?.name === "RH" && (
             <>
@@ -350,8 +303,53 @@ const Sidebar = () => {
               </li>
             </>
           )}
+          {/* Manager/Admin */}
+          {(user.role?.name === "Manager") && (
+            <>             
+              <li>
+                <NavLink
+                  to="/manager/dashboard"
+                  className="nav-link d-flex align-items-center text-white"
+                  style={({ isActive }) => ({
+                    background: isActive ? "#B30000" : "transparent",
+                    borderRadius: "10px",
+                    padding: "10px",
+                  })}
+                >
+                  <FiHome className="me-2" />
+                  {!collapsed && "Dashboard"}
+                </NavLink>
+              </li>
+              <li>
+                <NavLink to="/demande-conge" className="nav-link d-flex text-white">
+                  <FiFileText className="me-2" />
+                  {!collapsed && "Demande de congé"}
+                </NavLink>
+              </li>
+              <li>
+                <NavLink to="/mes-conges" className="nav-link d-flex text-white">
+                  <FiLayers className="me-2" />
+                  {!collapsed && "Mes congés"}
+                </NavLink>
+              </li>                            
+              <li>
+                <NavLink to="/manager/conges" className="nav-link d-flex text-white">
+                  <FiLayers className="me-2" />
+                  {!collapsed && "Congés équipe"}
+                </NavLink>
+              </li>
+              <li>
+                <NavLink
+                  to="/profil"
+                  className="nav-link d-flex align-items-center text-white"
+                >
+                  <FiUser className="me-2" />
+                  {!collapsed && "Mon Profil"}
+                </NavLink>
+              </li>
+            </>
+          )}                  
         </ul>
-
         {/* FOOTER */}
         <div className="mt-auto p-3 border-top border-secondary">
           {!collapsed && (

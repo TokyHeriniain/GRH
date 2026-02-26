@@ -138,7 +138,7 @@
         * Reliquats exprimés en jours ouvrés, calculés conformément à la politique RH en vigueur.
     </div>
 
-    <table class="signature">
+    <!-- <table class="signature">
         <tr>
             <td>
                 <div class="box">Responsable RH<br>Nom & Signature</div>
@@ -147,7 +147,7 @@
                 <div class="box">Cachet de l’entreprise</div>
             </td>
         </tr>
-    </table>
+    </table> -->
 
 </div>
 
